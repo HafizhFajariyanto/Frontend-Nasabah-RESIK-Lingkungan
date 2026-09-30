@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() => runApp(const ResikApp());
 
@@ -23,23 +25,57 @@ String rupiah(int v) {
   return 'Rp $buf';
 }
 
+/// Font judul / angka besar (serif display seperti di desain).
+/// Kalau di Figma fontnya beda, ganti GoogleFonts.fraunces di sini saja.
+TextStyle display({
+  double size = 14,
+  FontWeight weight = FontWeight.w800,
+  Color color = AppColors.dark,
+}) =>
+    GoogleFonts.fraunces(fontSize: size, fontWeight: weight, color: color);
+
 // ---------------------------------------------------------------
 // APP
 // ---------------------------------------------------------------
 class ResikApp extends StatelessWidget {
   const ResikApp({super.key});
 
+  // google_fonts v9 punya tipe TextTheme sendiri, jadi font dipasang
+  // per-style ke TextTheme bawaan Flutter.
+  TextTheme _spaceGrotesk(TextTheme t) {
+    TextStyle? f(TextStyle? s) =>
+        s == null ? null : GoogleFonts.spaceGrotesk(textStyle: s);
+    return t.copyWith(
+      displayLarge: f(t.displayLarge),
+      displayMedium: f(t.displayMedium),
+      displaySmall: f(t.displaySmall),
+      headlineLarge: f(t.headlineLarge),
+      headlineMedium: f(t.headlineMedium),
+      headlineSmall: f(t.headlineSmall),
+      titleLarge: f(t.titleLarge),
+      titleMedium: f(t.titleMedium),
+      titleSmall: f(t.titleSmall),
+      bodyLarge: f(t.bodyLarge),
+      bodyMedium: f(t.bodyMedium),
+      bodySmall: f(t.bodySmall),
+      labelLarge: f(t.labelLarge),
+      labelMedium: f(t.labelMedium),
+      labelSmall: f(t.labelSmall),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final base = ThemeData(
+      scaffoldBackgroundColor: AppColors.bg,
+      colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
+      useMaterial3: true,
+    );
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'RESIK',
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.bg,
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.green),
-        useMaterial3: true,
-      ),
-      home: const MainShell(),
+      theme: base.copyWith(textTheme: _spaceGrotesk(base.textTheme)),
+      home: const LoginScreen(), // layar pertama: Login
     );
   }
 }
@@ -61,7 +97,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = <Widget>[
       const HomePage(),
-      const TukarSaldoPage(),
+      TukarSaldoPage(onBack: () => setState(() => index = 0)),
       const PlaceholderPage(title: 'Setor'),
       const PlaceholderPage(title: 'Riwayat'),
       const PlaceholderPage(title: 'Profil'),
@@ -69,37 +105,26 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       body: SafeArea(child: pages[index]),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _navItem(0, Icons.home_rounded, 'Beranda'),
-                _navItem(1, Icons.swap_horiz_rounded, 'Tukar'),
-                GestureDetector(
-                  onTap: () => setState(() => index = 2),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: const BoxDecoration(
-                      color: AppColors.orange,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.recycling_rounded,
-                        color: Colors.white),
-                  ),
-                ),
-                _navItem(3, Icons.history_rounded, 'Riwayat'),
-                _navItem(4, Icons.person_rounded, 'Profil'),
-              ],
-            ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFE6DFCF)),
+            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _navItem(0, Icons.home_outlined, 'Beranda'),
+              _navItem(1, Icons.account_balance_wallet_outlined, 'Tukar'),
+              _navItem(2, Icons.recycling_rounded, 'Setor'),
+              _navItem(3, Icons.receipt_long_outlined, 'Riwayat'),
+              _navItem(4, Icons.person_rounded, 'Profil'),
+            ],
           ),
         ),
       ),
@@ -108,14 +133,26 @@ class _MainShellState extends State<MainShell> {
 
   Widget _navItem(int i, IconData icon, String label) {
     final active = index == i;
-    final color = active ? AppColors.orange : AppColors.muted;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => index = i),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color),
-          Text(label, style: TextStyle(fontSize: 11, color: color)),
+          Icon(icon, color: active ? AppColors.orange : AppColors.dark),
+          const SizedBox(height: 2),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: active ? AppColors.orange : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                    color: active ? Colors.white : AppColors.muted)),
+          ),
         ],
       ),
     );
@@ -246,14 +283,8 @@ class ActivityTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------
-// LAYAR 1: BERANDA (RESIK)
+// LAYAR: BERANDA (RESIK)
 // ---------------------------------------------------------------
-const serifStyle = TextStyle(
-  fontFamily: 'serif', // ganti dengan font desain (mis. lewat paket google_fonts)
-  fontWeight: FontWeight.w800,
-  color: AppColors.dark,
-);
-
 class CardHeader extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -322,12 +353,7 @@ class HomePage extends StatelessWidget {
         children: [
           _header(),
           const SizedBox(height: 18),
-          const Text('Selamat pagi, dika',
-              style: TextStyle(
-                  fontFamily: 'serif',
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.dark)),
+          Text('Selamat pagi, dika', style: display(size: 26)),
           const Text('Kamis, 17 September 2026',
               style: TextStyle(fontSize: 12, color: AppColors.muted)),
           const SizedBox(height: 14),
@@ -346,22 +372,18 @@ class HomePage extends StatelessWidget {
   Widget _header() {
     return Row(
       children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: AppColors.orange,
-            borderRadius: BorderRadius.circular(8),
+        // Logo RESIK (assets/images/Overlay.png)
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/images/Overlay.png',
+            width: 30,
+            height: 30,
+            fit: BoxFit.cover,
           ),
-          child: const Icon(Icons.recycling, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 8),
-        const Text('RESIK',
-            style: TextStyle(
-                fontFamily: 'serif',
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.dark)),
+        Text('RESIK', style: display(size: 20)),
         const Spacer(),
         Stack(
           children: [
@@ -420,22 +442,13 @@ class HomePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Row(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text('Rp',
-                  style: TextStyle(
-                      fontFamily: 'serif',
-                      fontSize: 16,
-                      color: AppColors.dark)),
-              SizedBox(width: 6),
-              Text('171.770',
-                  style: TextStyle(
-                      fontFamily: 'serif',
-                      fontSize: 44,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.dark)),
+              Text('Rp', style: display(size: 16, weight: FontWeight.w400)),
+              const SizedBox(width: 6),
+              Text('171.770', style: display(size: 44)),
             ],
           ),
           const Divider(height: 24),
@@ -498,18 +511,14 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('30,5 / 20 kg',
-                        style: TextStyle(
-                            fontFamily: 'serif',
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800)),
-                    SizedBox(height: 4),
-                    Text(
+                        style: display(size: 24, color: Colors.white)),
+                    const SizedBox(height: 4),
+                    const Text(
                         'Target tercapai! Bonus Rp10.000 dari RW masuk akhir bulan.',
                         style: TextStyle(color: Colors.white70, fontSize: 12)),
                   ],
@@ -863,19 +872,69 @@ class _PriceRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------
-// LAYAR 2: TUKAR SALDO
+// LAYAR: TUKAR SALDO (E-Wallet & Transfer Bank)
 // ---------------------------------------------------------------
+
+/// Format angka jadi 150.000 saat mengetik.
+class RibuanFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final text = rupiah(int.parse(digits)).substring(3); // buang "Rp "
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+/// Kotak dengan border putus-putus (kartu ringkasan).
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+          Offset.zero & size, Radius.circular(radius)));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    for (final metric in path.computeMetrics()) {
+      double d = 0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + 5), paint);
+        d += 9;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter old) =>
+      old.color != color || old.radius != radius;
+}
+
 class TukarSaldoPage extends StatefulWidget {
-  const TukarSaldoPage({super.key});
+  final VoidCallback? onBack;
+  const TukarSaldoPage({super.key, this.onBack});
 
   @override
   State<TukarSaldoPage> createState() => _TukarSaldoPageState();
 }
 
 class _TukarSaldoPageState extends State<TukarSaldoPage> {
-  final controller = TextEditingController(text: '100000');
-  int amount = 100000;
-  int method = 0; // 0 = Tunai, 1 = E-Wallet
+  static const int saldo = 212450;
+  static const int minimal = 50000;
+  static const int biayaLayanan = 1000;
+
+  final controller = TextEditingController(text: '150.000');
+  int amount = 150000;
+  int method = 0; // 0 = E-Wallet, 1 = Transfer Bank
   final quickAmounts = [50000, 100000, 150000, 200000];
 
   @override
@@ -887,151 +946,180 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
   void setAmount(int v) {
     setState(() {
       amount = v;
-      controller.text = v.toString();
+      controller.text = rupiah(v).substring(3);
     });
+  }
+
+  void _submit() {
+    String? error;
+    if (amount < minimal) {
+      error = 'Minimal penarikan ${rupiah(minimal)}';
+    } else if (amount > saldo) {
+      error = 'Saldo tidak cukup';
+    }
+    final metode = method == 0 ? 'E-Wallet' : 'Transfer Bank';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Menukar ${rupiah(amount)} ke $metode...')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Judul
-          const Row(
-            children: [
-              Text('Tukar Saldo',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              Spacer(),
-              Icon(Icons.settings_outlined),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Saldo tersedia
-          const AppCard(
-            color: AppColors.dark,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('SALDO TERSEDIA',
-                    style: TextStyle(
-                        color: Colors.white70, fontSize: 11, letterSpacing: 1)),
-                SizedBox(height: 4),
-                Text('Rp 212.450',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800)),
-              ],
-            ),
-          ),
-
-          // Metode penukaran
-          const SectionTitle('Metode penukaran'),
+          _topBar(),
+          const SizedBox(height: 18),
+          _saldoCard(),
+          const SizedBox(height: 22),
+          _label('METODE PENARIKAN'),
+          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _methodBox(0, Icons.payments_outlined, 'Tunai')),
-              const SizedBox(width: 10),
               Expanded(
                   child: _methodBox(
-                      1, Icons.account_balance_wallet_outlined, 'E-Wallet')),
+                      0, Icons.smartphone_rounded, 'E-Wallet')),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: _methodBox(
+                      1, Icons.account_balance_rounded, 'Transfer Bank')),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Input nominal
-          const SectionTitle('Nominal penukaran'),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.orange, width: 1.5),
-            ),
-            child: TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
-                prefixText: 'Rp ',
-                border: InputBorder.none,
-              ),
-              onChanged: (v) => setState(() => amount = int.tryParse(v) ?? 0),
-            ),
+          const SizedBox(height: 18),
+          _nominalBox(),
+          const SizedBox(height: 8),
+          Text('*Minimal Penarikan ${rupiah(minimal)}',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: amount < minimal ? AppColors.orange : AppColors.muted)),
+          const SizedBox(height: 10),
+          _quickChips(),
+          const SizedBox(height: 18),
+          _summaryCard(),
+          const SizedBox(height: 22),
+          _submitButton(),
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              _label('TARIK TERAKHIR'),
+              const Spacer(),
+              const Text('LIHAT SEMUA',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.orange)),
+            ],
           ),
           const SizedBox(height: 10),
+          _historyTile(),
+        ],
+      ),
+    );
+  }
 
-          // Pilihan cepat
-          Wrap(
-            spacing: 8,
-            children: quickAmounts.map((v) {
-              final selected = amount == v;
-              return ChoiceChip(
-                label: Text('${v ~/ 1000}rb'),
-                selected: selected,
-                selectedColor: AppColors.orange,
-                labelStyle:
-                    TextStyle(color: selected ? Colors.white : Colors.black87),
-                onSelected: (_) => setAmount(v),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-
-          // Ringkasan
-          AppCard(
-            child: Column(
-              children: [
-                _summaryRow('Biaya admin', 'Rp 0'),
-                _summaryRow('Estimasi', 'Instan'),
-                const Divider(),
-                _summaryRow('Total diterima', rupiah(amount), bold: true),
-              ],
+  // ---------- bagian-bagian layar ----------
+  Widget _topBar() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: widget.onBack,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.dark, width: 1.5),
             ),
+            child: const Icon(Icons.arrow_back_rounded,
+                size: 20, color: AppColors.dark),
           ),
+        ),
+        const SizedBox(width: 12),
+        Text('Tukar Saldo', style: display(size: 22)),
+        const Spacer(),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(
+              color: AppColors.dark, shape: BoxShape.circle),
+          child: const Icon(Icons.eco, size: 15, color: Colors.white),
+        ),
+      ],
+    );
+  }
 
-          // Tombol
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Menukar ${rupiah(amount)}...')),
-                );
-              },
-              child: const Text('Tukar Sekarang',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Riwayat
-          const AppCard(
+  Widget _saldoCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(color: AppColors.orange, offset: Offset(5, 5)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SectionTitle('Riwayat penukaran'),
-                ActivityTile(
-                    icon: Icons.south_west_rounded,
-                    title: 'Penukaran tunai',
-                    subtitle: '22 Sep 2026',
-                    amount: '-Rp 50.000'),
+                const Text('SALDO TERSEDIA',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Text(rupiah(saldo),
+                    style: display(size: 32, color: Colors.white)),
+                const SizedBox(height: 10),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.eco, size: 11, color: Colors.white70),
+                      SizedBox(width: 5),
+                      Text('Eco-Warrior Level 2',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 10)),
+                    ],
+                  ),
+                ),
               ],
             ),
+          ),
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(Icons.account_balance_wallet_rounded,
+                size: 40, color: Colors.white.withValues(alpha: 0.15)),
           ),
         ],
       ),
     );
   }
+
+  Widget _label(String text) => Text(text,
+      style: const TextStyle(
+          fontSize: 11,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w600,
+          color: AppColors.muted));
 
   Widget _methodBox(int i, IconData icon, String label) {
     final selected = method == i;
@@ -1040,39 +1128,958 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: selected ? AppColors.orange : Colors.transparent,
-              width: 1.5),
+              color: selected ? AppColors.orange : const Color(0xFFE6DFCF),
+              width: selected ? 1.5 : 1),
         ),
         child: Column(
           children: [
-            Icon(icon, color: selected ? AppColors.orange : AppColors.muted),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 12)),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(0xFFFADBD0)
+                    : const Color(0xFFEDE9DF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon,
+                  size: 19,
+                  color: selected ? AppColors.orange : AppColors.muted),
+            ),
+            const SizedBox(height: 8),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    color: selected ? AppColors.dark : AppColors.muted)),
           ],
         ),
       ),
     );
   }
 
-  Widget _summaryRow(String label, String value, {bool bold = false}) {
+  Widget _nominalBox() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.dark, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('NOMINAL PENARIKAN',
+              style: TextStyle(
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted)),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('Rp',
+                  style: display(
+                      size: 26,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFF9AA598))),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(9),
+                    RibuanFormatter(),
+                  ],
+                  style: display(size: 30),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (v) => setState(
+                      () => amount = int.tryParse(v.replaceAll('.', '')) ?? 0),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickChips() {
+    return Row(
+      children: [
+        for (int i = 0; i < quickAmounts.length; i++)
+          Expanded(
+            child: Padding(
+              padding:
+                  EdgeInsets.only(right: i == quickAmounts.length - 1 ? 0 : 8),
+              child: GestureDetector(
+                onTap: () => setAmount(quickAmounts[i]),
+                child: Container(
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: amount == quickAmounts[i]
+                        ? AppColors.dark
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.dark),
+                  ),
+                  child: Text('${quickAmounts[i] ~/ 1000}k',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: amount == quickAmounts[i]
+                              ? Colors.white
+                              : AppColors.dark)),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _summaryCard() {
+    return CustomPaint(
+      foregroundPainter: const _DashedBorderPainter(
+          color: Color(0xFFB9B3A2), radius: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEDE8DA),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            _summaryRow('Biaya Layanan', rupiah(biayaLayanan)),
+            _summaryRow('Estimasi Tiba', 'Instan ( < 10 Menit )'),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Divider(height: 1, color: Color(0xFFD8D2C2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Diterima',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.dark)),
+                  Text(rupiah(amount),
+                      style: display(size: 18, color: AppColors.orange)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: bold ? Colors.black87 : AppColors.muted)),
+              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           Text(value,
-              style: TextStyle(
-                  fontSize: bold ? 16 : 13,
-                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600)),
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.dark)),
         ],
       ),
     );
   }
+
+  Widget _submitButton() {
+    return GestureDetector(
+      onTap: _submit,
+      child: Container(
+        height: 58,
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+          color: AppColors.dark,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(color: AppColors.orange, offset: Offset(5, 5)),
+          ],
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.payments_outlined, color: Colors.white),
+            SizedBox(width: 10),
+            Text('Tukar Sekarang',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _historyTile() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE6DFCF)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6E0CF),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.credit_card_rounded,
+                size: 17, color: AppColors.muted),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('GOPAY - 0812***',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('12 Sep 2026',
+                    style: TextStyle(fontSize: 10, color: AppColors.muted)),
+              ],
+            ),
+          ),
+          const Text('Rp 150.000',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+// ===============================================================
+// AUTH: LOGIN, REGISTRASI STEP 1 & 2, SUKSES
+// ===============================================================
+
+const _line = Color(0xFFE6DFCF); // border krem, sama dengan AppCard
+const _card = Color(0xFFFDFBF5);
+
+void _goHome(BuildContext context) => Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const MainShell()), (r) => false);
+
+void _goLogin(BuildContext context) => Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+
+// ---------------------------------------------------------------
+// WIDGET BERSAMA
+// ---------------------------------------------------------------
+class AuthLogo extends StatelessWidget {
+  final double size;
+  const AuthLogo({super.key, this.size = 44});
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(size * .3),
+        child: Image.asset(
+          'assets/images/Overlay.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: size,
+            height: size,
+            color: AppColors.orange,
+            child: Icon(Icons.eco_rounded, color: Colors.white, size: size * .5),
+          ),
+        ),
+      );
+}
+
+class HardButton extends StatelessWidget {
+  final String label;
+  final IconData? trailing;
+  final VoidCallback onTap;
+  const HardButton(
+      {super.key, required this.label, required this.onTap, this.trailing});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          width: double.infinity,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.orange,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(color: AppColors.dark, offset: Offset(0, 4))
+            ],
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold)),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              Icon(trailing, color: Colors.white, size: 16),
+            ],
+          ]),
+        ),
+      );
+}
+
+class GoogleButton extends StatelessWidget {
+  final Color background;
+  final VoidCallback onTap;
+  const GoogleButton(
+      {super.key, required this.onTap, this.background = Colors.transparent});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 48,
+          width: double.infinity,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.dark, width: 1.5),
+          ),
+          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            Text('G',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF4285F4))),
+            SizedBox(width: 10),
+            Text('Lanjut dengan Google',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.dark)),
+          ]),
+        ),
+      );
+}
+
+class OrDivider extends StatelessWidget {
+  const OrDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Row(children: [
+        Expanded(child: Divider(color: _line)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text('ATAU',
+              style: TextStyle(
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w500)),
+        ),
+        Expanded(child: Divider(color: _line)),
+      ]);
+}
+
+class LabeledField extends StatelessWidget {
+  final String label, hint;
+  final bool obscure;
+  final Widget? trailingLabel;
+  final TextInputType? keyboard;
+  const LabeledField({
+    super.key,
+    required this.label,
+    required this.hint,
+    this.obscure = false,
+    this.trailingLabel,
+    this.keyboard,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.dark)),
+            if (trailingLabel != null) trailingLabel!,
+          ]),
+          const SizedBox(height: 6),
+          TextField(
+            obscureText: obscure,
+            keyboardType: keyboard,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                  fontSize: 13, color: AppColors.muted.withValues(alpha: .6)),
+              filled: true,
+              fillColor: Colors.white,
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _line)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: AppColors.dark, width: 1.5)),
+            ),
+          ),
+        ]),
+      );
+}
+
+class BottomLink extends StatelessWidget {
+  final String text, action;
+  final Color actionColor;
+  final VoidCallback onTap;
+  const BottomLink({
+    super.key,
+    required this.text,
+    required this.action,
+    required this.onTap,
+    this.actionColor = AppColors.dark,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Text.rich(TextSpan(
+          text: '$text ',
+          style: const TextStyle(fontSize: 12, color: AppColors.muted),
+          children: [
+            TextSpan(
+                text: action,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: actionColor)),
+          ],
+        )),
+      );
+}
+
+class AuthTopBar extends StatelessWidget {
+  final int step; // 1 atau 2
+  const AuthTopBar({super.key, required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget seg(Color c) => Expanded(
+        child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+                color: c, borderRadius: BorderRadius.circular(3))));
+    final off = Colors.white.withValues(alpha: .8);
+
+    return Column(children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const AuthLogo(size: 36),
+        const Text('Daftar Akun',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.dark)),
+      ]),
+      const SizedBox(height: 18),
+      Row(children: [
+        seg(step == 1 ? AppColors.orange : AppColors.dark),
+        const SizedBox(width: 4),
+        seg(step == 2 ? AppColors.orange : off),
+      ]),
+      const SizedBox(height: 6),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text('DATA DIRI',
+            style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: .5,
+                color: step == 1 ? AppColors.orange : AppColors.muted)),
+        Text('BUAT PASSWORD',
+            style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: .5,
+                color: step == 2 ? AppColors.orange : AppColors.muted)),
+      ]),
+    ]);
+  }
+}
+
+// ---------------------------------------------------------------
+// 1. LOGIN
+// ---------------------------------------------------------------
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool remember = false, hide = true;
+
+  InputDecoration _dec(String hint, IconData icon, {Widget? suffix}) =>
+      InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            fontSize: 12, color: AppColors.muted.withValues(alpha: .6)),
+        prefixIcon: Icon(icon, size: 16, color: AppColors.muted),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: _card,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.dark, width: 1.5)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.orange, width: 1.5)),
+      );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(children: [
+                const AuthLogo(),
+                const SizedBox(height: 22),
+                Text('Selamat Datang', style: display(size: 28, weight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                const Text(
+                    'Masuk untuk lanjut setor sampah dan\nkumpulkan saldomu.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11.5, color: AppColors.muted)),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _card,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.dark, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: AppColors.dark, offset: Offset(0, 5))
+                    ],
+                  ),
+                  child: Column(children: [
+                    TextField(
+                        style: const TextStyle(fontSize: 13),
+                        decoration:
+                            _dec('WhatsApp atau Email', Icons.phone_outlined)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      obscureText: hide,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: _dec(
+                        'Password',
+                        Icons.lock_outline,
+                        suffix: IconButton(
+                          icon: Icon(
+                              hide
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 18,
+                              color: AppColors.dark),
+                          onPressed: () => setState(() => hide = !hide),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: Checkbox(
+                          value: remember,
+                          side: const BorderSide(color: AppColors.dark),
+                          onChanged: (v) => setState(() => remember = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Ingat saya',
+                          style: TextStyle(
+                              fontSize: 10.5, color: AppColors.dark)),
+                      const Spacer(),
+                      const Text('Lupa Password?',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.orange)),
+                    ]),
+                    const SizedBox(height: 16),
+                    HardButton(
+                        label: 'Masuk',
+                        trailing: Icons.arrow_forward,
+                        onTap: () => _goHome(context)),
+                    const SizedBox(height: 14),
+                    const OrDivider(),
+                    const SizedBox(height: 14),
+                    GoogleButton(onTap: () => _goHome(context)),
+                  ]),
+                ),
+                const SizedBox(height: 24),
+                BottomLink(
+                  text: 'Belum punya akun?',
+                  action: 'Daftar',
+                  actionColor: AppColors.orange,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const RegisterStep1())),
+                ),
+                const SizedBox(height: 28),
+                const Text('© 2026 RESIK ECOSYSTEM',
+                    style: TextStyle(fontSize: 9, color: AppColors.muted)),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------
+// 2. REGISTRASI STEP 1 - DATA DIRI
+// ---------------------------------------------------------------
+class RegisterStep1 extends StatelessWidget {
+  const RegisterStep1({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(children: [
+              const AuthTopBar(step: 1),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
+                decoration: BoxDecoration(
+                    color: _card, borderRadius: BorderRadius.circular(18)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Center(
+                    child: Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(Icons.recycling_rounded,
+                          color: AppColors.green, size: 34),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text('Yuk, mulai setor\nsampah!',
+                        textAlign: TextAlign.center,
+                        style: display(size: 22)),
+                  ),
+                  const SizedBox(height: 6),
+                  const Center(
+                    child: Text(
+                        'Daftar dulu untuk mulai kumpulkan saldo\ndari sampahmu.',
+                        textAlign: TextAlign.center,
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.muted)),
+                  ),
+                  const SizedBox(height: 20),
+                  const LabeledField(
+                      label: 'Nama Lengkap', hint: 'Contoh: Andi Wijaya'),
+                  const LabeledField(
+                      label: 'Nomor WhatsApp',
+                      hint: '0812xxxx',
+                      keyboard: TextInputType.phone),
+                  const LabeledField(
+                      label: 'Email',
+                      hint: 'nama@email.com',
+                      keyboard: TextInputType.emailAddress),
+                  const LabeledField(
+                    label: 'Alamat / Kelurahan',
+                    hint: 'Cari kelurahan Anda',
+                    trailingLabel: Text('Pakai lokasi saya',
+                        style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.orange)),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 20),
+              HardButton(
+                label: 'Lanjut',
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const RegisterStep2())),
+              ),
+              const SizedBox(height: 14),
+              const OrDivider(),
+              const SizedBox(height: 14),
+              GoogleButton(background: _card, onTap: () => _goHome(context)),
+              const SizedBox(height: 16),
+              BottomLink(
+                  text: 'Sudah punya akun?',
+                  action: 'Masuk',
+                  onTap: () => _goLogin(context)),
+            ]),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------
+// 3. REGISTRASI STEP 2 - BUAT PASSWORD
+// ---------------------------------------------------------------
+class RegisterStep2 extends StatefulWidget {
+  const RegisterStep2({super.key});
+
+  @override
+  State<RegisterStep2> createState() => _RegisterStep2State();
+}
+
+class _RegisterStep2State extends State<RegisterStep2> {
+  bool agree = false;
+
+  TextSpan _link(String t) => TextSpan(
+      text: t,
+      style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          color: AppColors.dark,
+          decoration: TextDecoration.underline));
+
+  void _submit() {
+    if (!agree) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Setujui Syarat & Ketentuan terlebih dahulu')));
+      return;
+    }
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const SuccessScreen()));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(children: [
+              const AuthTopBar(step: 2),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                    color: _card, borderRadius: BorderRadius.circular(18)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const SizedBox(height: 22),
+                  Center(child: Text('Satu langkah lagi!', style: display(size: 22))),
+                  const SizedBox(height: 6),
+                  const Center(
+                    child: Text('Buat password yang kuat untuk\nkeamanan akunmu.',
+                        textAlign: TextAlign.center,
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.muted)),
+                  ),
+                  const SizedBox(height: 24),
+                  const LabeledField(
+                      label: 'Password', hint: '••••••••', obscure: true),
+                  const LabeledField(
+                      label: 'Konfirmasi Password',
+                      hint: '••••••••',
+                      obscure: true),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Checkbox(
+                        value: agree,
+                        side: const BorderSide(color: AppColors.dark, width: 1.5),
+                        onChanged: (v) => setState(() => agree = v!),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text.rich(TextSpan(
+                        text: 'Saya setuju dengan ',
+                        style: const TextStyle(
+                            fontSize: 10.5, color: AppColors.muted),
+                        children: [
+                          _link('Syarat & Ketentuan'),
+                          const TextSpan(text: ' dan '),
+                          _link('Kebijakan Privasi'),
+                        ],
+                      )),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                ]),
+              ),
+              const SizedBox(height: 36),
+              HardButton(label: 'Daftar Sekarang', onTap: _submit),
+              const SizedBox(height: 14),
+              BottomLink(
+                  text: 'Sudah punya akun?',
+                  action: 'Masuk',
+                  onTap: () => _goLogin(context)),
+            ]),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------
+// 4. REGISTRASI BERHASIL
+// ---------------------------------------------------------------
+class SuccessScreen extends StatelessWidget {
+  final String name;
+  const SuccessScreen({super.key, this.name = 'Budi Santoso'});
+
+  Widget _dot() => Container(
+      width: 6,
+      height: 6,
+      decoration: const BoxDecoration(
+          shape: BoxShape.circle, color: AppColors.muted));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Stack(children: [
+          // dekorasi daun
+          Positioned(
+            top: -10,
+            right: 10,
+            child: Transform.rotate(
+              angle: .5,
+              child: Container(
+                width: 130,
+                height: 110,
+                decoration: BoxDecoration(
+                  color: AppColors.green.withValues(alpha: .15),
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(90),
+                      bottomRight: Radius.circular(90)),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                    decoration: BoxDecoration(
+                      color: _card,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: .06),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8))
+                      ],
+                    ),
+                    child: Column(children: [
+                      SizedBox(
+                        width: 130,
+                        height: 130,
+                        child: Stack(alignment: Alignment.center, children: [
+                          Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.bg,
+                                  border: Border.all(color: _line))),
+                          Container(
+                              width: 84,
+                              height: 84,
+                              decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.dark)),
+                          const Positioned(
+                              right: 6, top: 4, child: AuthLogo(size: 24)),
+                        ]),
+                      ),
+                      const SizedBox(height: 20),
+                      Text('Akun Berhasil\nDibuat!',
+                          textAlign: TextAlign.center,
+                          style: display(size: 26)),
+                      const SizedBox(height: 14),
+                      Text.rich(
+                        TextSpan(
+                          text: 'Selamat datang di ',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.muted, height: 1.5),
+                          children: [
+                            const TextSpan(
+                                text: 'RESIK',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.dark)),
+                            const TextSpan(text: ', '),
+                            TextSpan(
+                                text: name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.dark)),
+                            const TextSpan(
+                                text:
+                                    '. Kamu sekarang bisa mulai menyetor sampah dan mengumpulkan saldo.'),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 26),
+                      HardButton(
+                          label: 'Mulai Sekarang',
+                          onTap: () => _goHome(context)),
+                    ]),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    _dot(),
+                    const SizedBox(width: 6),
+                    Container(
+                        width: 26,
+                        height: 5,
+                        decoration: BoxDecoration(
+                            color: AppColors.muted,
+                            borderRadius: BorderRadius.circular(3))),
+                    const SizedBox(width: 6),
+                    _dot(),
+                  ]),
+                ]),
+              ),
+            ),
+          ),
+        ]),
+      );
 }
