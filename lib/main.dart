@@ -1679,14 +1679,25 @@ class TukarSaldoPage extends StatefulWidget {
 }
 
 class _TukarSaldoPageState extends State<TukarSaldoPage> {
-  static const int saldo = 212450;
   static const int minimal = 50000;
   static const int biayaLayanan = 1000;
 
+  int saldo = 212450;
   final controller = TextEditingController(text: '150.000');
   int amount = 150000;
   int method = 0; // 0 = E-Wallet, 1 = Transfer Bank
+  int provider = 0; // index provider pada daftar metode yang aktif
   final quickAmounts = [50000, 100000, 150000, 200000];
+
+  // daftar provider untuk tiap metode
+  static const ewallets = ['Gopay', 'Dana', 'OVO', 'ShopeePay'];
+  static const banks = ['Mandiri', 'BCA', 'BNI', 'BRI'];
+  List<String> get providers => method == 0 ? ewallets : banks;
+
+  // riwayat penarikan (terbaru di index 0)
+  final List<Map<String, dynamic>> history = [
+    {'name': 'Gopay - 0812***', 'date': '12 Sep 2026', 'amount': 150000},
+  ];
 
   @override
   void dispose() {
@@ -1701,19 +1712,81 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     String? error;
     if (amount < minimal) {
       error = 'Minimal penarikan ${rupiah(minimal)}';
     } else if (amount > saldo) {
       error = 'Saldo tidak cukup';
     }
-    final metode = method == 0 ? 'E-Wallet' : 'Transfer Bank';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Menukar ${rupiah(amount)} ke $metode...'),
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+
+    // popup "PENUKARAN BERHASIL"
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black38,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 30),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.dark, width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.dark, width: 2.5),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 32,
+                  color: AppColors.dark,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'PENUKARAN BERHASIL',
+                style: display(size: 14, weight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
       ),
     );
+
+    // catat ke riwayat & kurangi saldo
+    const bulan = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    ];
+    final now = DateTime.now();
+    final nomor = method == 0 ? '0812***' : '1234***';
+    setState(() {
+      saldo -= amount;
+      history.insert(0, {
+        'name': '${providers[provider]} - $nomor',
+        'date': '${now.day} ${bulan[now.month - 1]} ${now.year}',
+        'amount': amount,
+      });
+    });
+
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // tutup popup
   }
 
   @override
@@ -1744,7 +1817,9 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
+          _providerRow(),
+          const SizedBox(height: 14),
           _nominalBox(),
           const SizedBox(height: 8),
           Text(
@@ -1903,10 +1978,47 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
     ),
   );
 
+  Widget _providerRow() {
+    final list = providers;
+    return Row(
+      children: [
+        for (int i = 0; i < list.length; i++)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: i == list.length - 1 ? 0 : 8),
+              child: GestureDetector(
+                onTap: () => setState(() => provider = i),
+                child: Container(
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: provider == i ? AppColors.dark : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.dark),
+                  ),
+                  child: Text(
+                    list[i],
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                      color: provider == i ? Colors.white : AppColors.dark,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _methodBox(int i, IconData icon, String label) {
     final selected = method == i;
     return GestureDetector(
-      onTap: () => setState(() => method = i),
+      onTap: () => setState(() {
+        method = i;
+        provider = 0;
+      }),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
@@ -2152,6 +2264,7 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
   }
 
   Widget _historyTile() {
+    final last = history.first;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2175,24 +2288,27 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
             ),
           ),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'GOPAY - 0812***',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  last['name'] as String,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
-                  '12 Sep 2026',
-                  style: TextStyle(fontSize: 10, color: AppColors.muted),
+                  last['date'] as String,
+                  style: const TextStyle(fontSize: 10, color: AppColors.muted),
                 ),
               ],
             ),
           ),
-          const Text(
-            'Rp 150.000',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          Text(
+            rupiah(last['amount'] as int),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -3099,3 +3215,4 @@ class SuccessScreen extends StatelessWidget {
     ),
   );
 }
+
