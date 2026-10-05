@@ -91,19 +91,24 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int index = 0;
+  bool showNotif = false; // true = tampilkan halaman Notifikasi
 
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      const HomePage(),
+      HomePage(onNotif: () => setState(() => showNotif = true)),
       TukarSaldoPage(onBack: () => setState(() => index = 0)),
       SetorPage(onBack: () => setState(() => index = 0)),
-      const PlaceholderPage(title: 'Riwayat'),
-      const PlaceholderPage(title: 'Profil'),
+      RiwayatPage(onBack: () => setState(() => index = 0)),
+      ProfilPage(onBack: () => setState(() => index = 0)),
     ];
 
     return Scaffold(
-      body: SafeArea(child: pages[index]),
+      body: SafeArea(
+        child: showNotif
+            ? NotifikasiPage(onBack: () => setState(() => showNotif = false))
+            : pages[index],
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -131,10 +136,13 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _navItem(int i, IconData icon, String label) {
-    final active = index == i;
+    final active = !showNotif && index == i;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => index = i),
+      onTap: () => setState(() {
+        index = i;
+        showNotif = false;
+      }),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1002,7 +1010,8 @@ class DashedLine extends StatelessWidget {
 }
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  final VoidCallback? onNotif;
+  const HomePage({super.key, this.onNotif});
 
   @override
   Widget build(BuildContext context) {
@@ -1047,25 +1056,39 @@ class HomePage extends StatelessWidget {
         const SizedBox(width: 8),
         Text('RESIK', style: display(size: 20)),
         const Spacer(),
-        Stack(
-          children: [
-            const Icon(
-              Icons.notifications_none_rounded,
-              color: AppColors.orange,
-            ),
-            Positioned(
-              right: 2,
-              top: 2,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppColors.orange,
-                  shape: BoxShape.circle,
-                ),
+        // Lonceng notifikasi: ketuk untuk membuka halaman Notifikasi
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onNotif,
+          child: Stack(
+            children: [
+              const Icon(
+                Icons.notifications_none_rounded,
+                color: AppColors.orange,
               ),
-            ),
-          ],
+              // titik oranye hanya muncul kalau ada yang belum dibaca
+              ValueListenableBuilder<List<_Notif>>(
+                valueListenable: notifikasi,
+                builder: (context, list, _) {
+                  if (!list.any((n) => !n.dibaca)) {
+                    return const SizedBox.shrink();
+                  }
+                  return Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppColors.orange,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
         const SizedBox(width: 10),
         const CircleAvatar(
@@ -2311,6 +2334,1484 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// LAYAR: RIWAYAT
+// ---------------------------------------------------------------
+
+/// Data satu transaksi.
+class _Trx {
+  final String judul;
+  final String jam;
+  final String status; // 'Selesai' / 'Diproses'
+  final int nominal;
+  final bool masuk; // true = +, false = -
+  final String sub; // teks kecil di bawah nominal
+  final IconData icon;
+  const _Trx({
+    required this.judul,
+    required this.jam,
+    required this.status,
+    required this.nominal,
+    required this.masuk,
+    required this.sub,
+    required this.icon,
+  });
+}
+
+/// Satu kelompok tanggal (HARI INI, KEMARIN, dst).
+class _Grup {
+  final String label;
+  final List<_Trx> items;
+  const _Grup(this.label, this.items);
+}
+
+const _riwayat = <_Grup>[
+  _Grup('HARI INI', [
+    _Trx(
+      judul: 'Setor Plastik PET',
+      jam: '14:20',
+      status: 'Selesai',
+      nominal: 12500,
+      masuk: true,
+      sub: '2.5 KG',
+      icon: Icons.local_drink_outlined,
+    ),
+    _Trx(
+      judul: 'Tarik Saldo\n(GoPay)',
+      jam: '09:15',
+      status: 'Diproses',
+      nominal: 150000,
+      masuk: false,
+      sub: 'BIAYA ADMIN RP\n1.000',
+      icon: Icons.payments_outlined,
+    ),
+  ]),
+  _Grup('KEMARIN', [
+    _Trx(
+      judul: 'Setor Kardus',
+      jam: '16:45',
+      status: 'Selesai',
+      nominal: 34200,
+      masuk: true,
+      sub: '11.4 KG',
+      icon: Icons.inventory_2_outlined,
+    ),
+    _Trx(
+      judul: 'Setor Kertas',
+      jam: '19:50',
+      status: 'Selesai',
+      nominal: 39900,
+      masuk: true,
+      sub: '20.9 KG',
+      icon: Icons.inventory_2_outlined,
+    ),
+  ]),
+  _Grup('15 SEP 2023', [
+    _Trx(
+      judul: 'Setor Minyak\nJelantah',
+      jam: '10:30',
+      status: 'Selesai',
+      nominal: 18000,
+      masuk: true,
+      sub: '1.2 KG',
+      icon: Icons.eco_outlined,
+    ),
+  ]),
+];
+
+class RiwayatPage extends StatelessWidget {
+  final VoidCallback? onBack;
+  const RiwayatPage({super.key, this.onBack});
+
+  // Ringkasan bulan ini (nanti ganti dengan hitungan dari data asli)
+  static const String terkumpul = '42.5';
+  static const String saldoMasuk = 'Rp 212k';
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _topBar(),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _ringkasCard(
+                  icon: Icons.recycling_rounded,
+                  label: 'TERKUMPUL',
+                  value: Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(terkumpul, style: display(size: 24)),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Kg',
+                        style: display(size: 11, weight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _ringkasCard(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'SALDO MASUK',
+                  value: Text(saldoMasuk, style: display(size: 22)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          _bulanHeader('September 2026'),
+          const SizedBox(height: 16),
+          for (final g in _riwayat) ...[
+            _grupHeader(g.label),
+            const SizedBox(height: 12),
+            for (final t in g.items) _trxTile(t),
+            const SizedBox(height: 6),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ---------- bagian-bagian ----------
+  Widget _topBar() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: onBack,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.dark, width: 1.5),
+            ),
+            child: const Icon(
+              Icons.arrow_back_rounded,
+              size: 20,
+              color: AppColors.dark,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text('Riwayat', style: display(size: 22))),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(
+            color: AppColors.dark,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.eco, size: 15, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _ringkasCard({
+    required IconData icon,
+    required String label,
+    required Widget value,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(right: 4, bottom: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.dark, width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: AppColors.dark, offset: Offset(4, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFADBD0),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Icon(icon, size: 11, color: AppColors.orange),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    letterSpacing: .5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          value,
+        ],
+      ),
+    );
+  }
+
+  Widget _bulanHeader(String text) {
+    return Row(
+      children: [
+        Text(text, style: display(size: 14, weight: FontWeight.w700)),
+        const SizedBox(width: 10),
+        const Expanded(child: Divider(color: _line, height: 1)),
+        const SizedBox(width: 6),
+        const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 18,
+          color: AppColors.muted,
+        ),
+      ],
+    );
+  }
+
+  Widget _grupHeader(String text) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 9.5,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+            color: AppColors.muted,
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Expanded(child: Divider(color: _line, height: 1)),
+      ],
+    );
+  }
+
+  Widget _trxTile(_Trx t) {
+    final selesai = t.status == 'Selesai';
+    final statusColor = selesai ? AppColors.green : AppColors.orange;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+      ),
+      child: Row(
+        children: [
+          // ikon
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: t.masuk
+                  ? const Color(0xFFFADBD0)
+                  : const Color(0xFFE6E0CF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              t.icon,
+              size: 22,
+              color: t.masuk ? AppColors.orange : AppColors.muted,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // judul + jam + status
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.judul,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dark,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text.rich(
+                  TextSpan(
+                    text: '${t.jam} · ',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.muted,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: t.status,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // nominal
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${t.masuk ? '+' : '-'}${rupiah(t.nominal)}',
+                style: display(size: 15, weight: FontWeight.w800),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                t.sub,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontSize: 8,
+                  letterSpacing: .5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// LAYAR: PROFIL
+// ---------------------------------------------------------------
+
+/// Data satu rekening pencairan.
+class _Rekening {
+  String metode;
+  String nomor;
+  String pemilik;
+  _Rekening(this.metode, this.nomor, this.pemilik);
+
+  /// 081234567890 -> 0812 • • • • 7890
+  String get masked {
+    if (nomor.length <= 8) return nomor;
+    return '${nomor.substring(0, 4)} • • • • ${nomor.substring(nomor.length - 4)}';
+  }
+}
+
+const _daftarMetode = <String>[
+  'E-Wallet (GoPay)',
+  'E-Wallet (Dana)',
+  'E-Wallet (OVO)',
+  'E-Wallet (ShopeePay)',
+  'BCA',
+  'Mandiri',
+  'BNI',
+  'BRI',
+];
+
+const _tipePengguna = <String>[
+  'Rumah Tangga',
+  'Usaha / UMKM',
+  'Sekolah',
+  'Perkantoran',
+];
+
+/// Label kecil di atas input.
+Widget _miniLabel(String text) => Text(
+  text,
+  style: const TextStyle(
+    fontSize: 8,
+    letterSpacing: .8,
+    fontWeight: FontWeight.w700,
+    color: AppColors.muted,
+  ),
+);
+
+/// Dropdown dengan tampilan kotak (dipakai di Profil & form rekening).
+class _BoxDropdown extends StatelessWidget {
+  final String? value;
+  final String hint;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+  final Color border;
+  final double borderWidth;
+  final double radius;
+  const _BoxDropdown({
+    required this.value,
+    required this.hint,
+    required this.items,
+    required this.onChanged,
+    this.border = _line,
+    this.borderWidth = 1,
+    this.radius = 8,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context).textTheme.bodyMedium!;
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: border, width: borderWidth),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: AppColors.muted,
+          ),
+          hint: Text(
+            hint,
+            style: base.copyWith(
+              fontSize: 11,
+              color: AppColors.muted.withValues(alpha: .7),
+            ),
+          ),
+          style: base.copyWith(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.dark,
+          ),
+          items: [
+            for (final e in items) DropdownMenuItem(value: e, child: Text(e)),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+/// Input teks berlabel untuk halaman profil.
+class _ProfilField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final TextInputType? keyboard;
+  final List<TextInputFormatter>? formatters;
+  const _ProfilField({
+    required this.label,
+    required this.controller,
+    this.keyboard,
+    this.formatters,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _miniLabel(label),
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 42,
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboard,
+            inputFormatters: formatters,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.dark,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _line),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.dark, width: 1.3),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class ProfilPage extends StatefulWidget {
+  final VoidCallback? onBack;
+  const ProfilPage({super.key, this.onBack});
+
+  @override
+  State<ProfilPage> createState() => _ProfilPageState();
+}
+
+class _ProfilPageState extends State<ProfilPage> {
+  final namaC = TextEditingController(text: 'Andhika Ahmad');
+  final hpC = TextEditingController(text: '+62 8123 456 789');
+  final nikC = TextEditingController(text: '1234567891011213');
+  final alamatC = TextEditingController(text: 'Jl. Sigura-gura Barat No.12, 450 m');
+  final rtC = TextEditingController(text: '005');
+  final rwC = TextEditingController(text: '012');
+  final kelC = TextEditingController(
+    text: 'Sigura-gura barat, Sigura-gura, Kota Malang',
+  );
+
+  String tipe = _tipePengguna.first;
+
+  final List<_Rekening> rekening = [
+    _Rekening('E-Wallet (GoPay)', '081234567890', 'Dhika Ahmad'),
+  ];
+  int utama = 0; // index rekening utama
+
+  @override
+  void dispose() {
+    for (final c in [namaC, hpC, nikC, alamatC, rtC, rwC, kelC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  // ---------- logika rekening ----------
+  Future<_Rekening?> _bukaForm({_Rekening? awal}) {
+    return showModalBottomSheet<_Rekening>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (_) => _RekeningSheet(initial: awal),
+    );
+  }
+
+  Future<void> _tambah() async {
+    final r = await _bukaForm();
+    if (r != null) setState(() => rekening.add(r));
+  }
+
+  Future<void> _ganti(int i) async {
+    final r = await _bukaForm(awal: rekening[i]);
+    if (r != null) setState(() => rekening[i] = r);
+  }
+
+  // ---------- tampilan ----------
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _topBar(),
+          const SizedBox(height: 16),
+          _profilCard(),
+          const SizedBox(height: 18),
+          _sectionLabel('DATA PRIBADI'),
+          const SizedBox(height: 10),
+          _ProfilField(label: 'NAMA LENGKAP (SESUAI KTP)', controller: namaC),
+          _ProfilField(
+            label: 'NOMOR HP / WHATSAPP',
+            controller: hpC,
+            keyboard: TextInputType.phone,
+          ),
+          _ProfilField(
+            label: 'NIK (KTP)',
+            controller: nikC,
+            keyboard: TextInputType.number,
+            formatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(16),
+            ],
+          ),
+          _miniLabel('TIPE PENGGUNA'),
+          const SizedBox(height: 4),
+          _BoxDropdown(
+            value: tipe,
+            hint: 'Pilih tipe',
+            items: _tipePengguna,
+            onChanged: (v) => setState(() => tipe = v ?? tipe),
+          ),
+          const SizedBox(height: 18),
+          _sectionLabel('ALAMAT'),
+          const SizedBox(height: 10),
+          _ProfilField(label: 'ALAMAT LENGKAP', controller: alamatC),
+          Row(
+            children: [
+              Expanded(
+                child: _ProfilField(
+                  label: 'RT',
+                  controller: rtC,
+                  keyboard: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ProfilField(
+                  label: 'RW',
+                  controller: rwC,
+                  keyboard: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          _ProfilField(label: 'KELURAHAN / KEC. & KOTA', controller: kelC),
+          _miniLabel('PINPOINT LOKASI'),
+          const SizedBox(height: 4),
+          _peta(),
+          const SizedBox(height: 18),
+          _sectionLabel('REKENING PENCAIRAN'),
+          const SizedBox(height: 10),
+          for (int i = 0; i < rekening.length; i++) _rekeningCard(i),
+          _tambahButton(),
+          const SizedBox(height: 14),
+          _keluarButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _topBar() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: widget.onBack,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.dark, width: 1.5),
+            ),
+            child: const Icon(
+              Icons.arrow_back_rounded,
+              size: 20,
+              color: AppColors.dark,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text('Profil', style: display(size: 22))),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(
+            color: AppColors.dark,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.eco, size: 15, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _profilCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+      ),
+      child: Row(
+        children: [
+          // Foto profil (ganti Icon dengan Image.asset kalau sudah ada fotonya)
+          SizedBox(
+            width: 62,
+            height: 62,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3EDD9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.orange, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    size: 34,
+                    color: AppColors.dark,
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppColors.orange,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.photo_camera_rounded,
+                      size: 9,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Dhika Ahmad', style: display(size: 16)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBEBC8),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Member Gold',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8A5A00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) {
+    return Row(
+      children: [
+        Container(width: 3, height: 11, color: AppColors.orange),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 9.5,
+            letterSpacing: 1,
+            fontWeight: FontWeight.w800,
+            color: AppColors.dark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _peta() {
+    // Placeholder peta: ganti dengan flutter_map / gambar peta nanti
+    return Container(
+      height: 120,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFF7E8F5E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Stack(
+        children: [
+          const Center(
+            child: Icon(Icons.location_on, color: AppColors.orange, size: 34),
+          ),
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Koordinat: -6.3979, 106.8210',
+                      style: TextStyle(fontSize: 9, color: AppColors.muted),
+                    ),
+                  ),
+                  Text(
+                    'Ubah Lokasi',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rekeningCard(int i) {
+    final r = rekening[i];
+    final isUtama = utama == i;
+    const label = TextStyle(
+      fontSize: 7.5,
+      letterSpacing: 1,
+      fontWeight: FontWeight.w600,
+      color: Colors.white54,
+    );
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(isUtama ? 'METODE UTAMA' : 'METODE LAIN', style: label),
+              const Spacer(),
+              // ketuk lingkaran ini untuk menjadikan rekening utama
+              GestureDetector(
+                onTap: () => setState(() => utama = i),
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isUtama ? AppColors.orange : Colors.transparent,
+                    border: Border.all(
+                      color: isUtama ? AppColors.orange : Colors.white38,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: isUtama
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 12,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(r.metode, style: display(size: 15, color: Colors.white)),
+          const SizedBox(height: 14),
+          const Text('NOMOR AKUN / NOMOR REKENING', style: label),
+          const SizedBox(height: 3),
+          Text(
+            r.masked,
+            style: const TextStyle(
+              fontSize: 14,
+              letterSpacing: 1,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('NAMA PEMILIK', style: label),
+                    const SizedBox(height: 3),
+                    Text(
+                      r.pemilik,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _ganti(i),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'GANTI METODE',
+                    style: TextStyle(
+                      fontSize: 8,
+                      letterSpacing: .5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tambahButton() {
+    return GestureDetector(
+      onTap: _tambah,
+      child: CustomPaint(
+        foregroundPainter: const _DashedBorderPainter(
+          color: Color(0xFFB9B3A2),
+          radius: 12,
+        ),
+        child: Container(
+          height: 44,
+          width: double.infinity,
+          alignment: Alignment.center,
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.add_circle_rounded, size: 14, color: AppColors.orange),
+              SizedBox(width: 8),
+              Text(
+                'Tambah Metode Pencairan',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _keluarButton() {
+    return GestureDetector(
+      onTap: () => _goLogin(context),
+      child: Container(
+        height: 46,
+        width: double.infinity,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _line),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.logout_rounded, size: 15, color: AppColors.orange),
+            SizedBox(width: 8),
+            Text(
+              'Keluar dari Akun',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.orange,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Form (bottom sheet) untuk tambah / ganti rekening pencairan.
+class _RekeningSheet extends StatefulWidget {
+  final _Rekening? initial; // null = tambah baru, isi = ganti metode
+  const _RekeningSheet({this.initial});
+
+  @override
+  State<_RekeningSheet> createState() => _RekeningSheetState();
+}
+
+class _RekeningSheetState extends State<_RekeningSheet> {
+  String? metode;
+  late final TextEditingController pemilikC;
+  late final TextEditingController nomorC;
+  String? error;
+
+  bool get edit => widget.initial != null;
+
+  @override
+  void initState() {
+    super.initState();
+    metode = widget.initial?.metode;
+    pemilikC = TextEditingController(text: widget.initial?.pemilik ?? '');
+    nomorC = TextEditingController(text: widget.initial?.nomor ?? '');
+  }
+
+  @override
+  void dispose() {
+    pemilikC.dispose();
+    nomorC.dispose();
+    super.dispose();
+  }
+
+  void _simpan() {
+    final nama = pemilikC.text.trim();
+    final nomor = nomorC.text.trim();
+    if (metode == null || nama.isEmpty || nomor.length < 6) {
+      setState(() => error = 'Lengkapi semua data (nomor minimal 6 digit)');
+      return;
+    }
+    Navigator.pop(context, _Rekening(metode!, nomor, nama));
+  }
+
+  InputDecoration _dec(String hint) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(
+      fontSize: 11,
+      color: AppColors.muted.withValues(alpha: .7),
+    ),
+    filled: true,
+    fillColor: Colors.white,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: AppColors.dark, width: 1.2),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.dark, width: 1.5),
+              boxShadow: const [
+                BoxShadow(color: AppColors.dark, offset: Offset(0, 5)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                    color: AppColors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    edit ? Icons.edit_rounded : Icons.add_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFADBD0),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFF2B9A3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.credit_card_rounded,
+                        size: 16,
+                        color: AppColors.orange,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        edit
+                            ? 'Ganti Rekening Pencairan'
+                            : 'Tambah Rekening Pencairan',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.dark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _BoxDropdown(
+                  value: metode,
+                  hint: 'Metode Pencairan',
+                  items: _daftarMetode,
+                  border: AppColors.dark,
+                  borderWidth: 1.2,
+                  onChanged: (v) => setState(() => metode = v),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: pemilikC,
+                  textCapitalization: TextCapitalization.words,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: _dec('Nama Pemilik'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nomorC,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(20),
+                  ],
+                  style: const TextStyle(fontSize: 12),
+                  decoration: _dec('Nomor Akun / Nomor Rekening'),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    error!,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.orange,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                HardButton(label: edit ? 'Simpan' : 'Tambah', onTap: _simpan),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// LAYAR: NOTIFIKASI
+// ---------------------------------------------------------------
+
+/// Data satu notifikasi.
+class _Notif {
+  final String grup; // HARI INI / KEMARIN / tanggal
+  final String judul;
+  final String isi;
+  final String waktu;
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  bool dibaca;
+  _Notif({
+    required this.grup,
+    required this.judul,
+    required this.isi,
+    required this.waktu,
+    required this.icon,
+    required this.bg,
+    required this.fg,
+    this.dibaca = false,
+  });
+}
+
+/// Daftar notifikasi dipakai bersama oleh Beranda (titik merah di lonceng)
+/// dan halaman Notifikasi. Nanti ganti dengan data dari server.
+final ValueNotifier<List<_Notif>> notifikasi = ValueNotifier<List<_Notif>>([
+  _Notif(
+    grup: 'HARI INI',
+    judul: 'Saldo Masuk',
+    isi: 'Saldo masuk Rp 15.000 dari Setoran #TX992',
+    waktu: '10:46',
+    icon: Icons.account_balance_wallet_outlined,
+    bg: const Color(0xFFE3EDD9),
+    fg: AppColors.green,
+  ),
+  _Notif(
+    grup: 'HARI INI',
+    judul: 'Penjemputan Sampah',
+    isi: 'Armada sedang menuju lokasi Anda. Pastikan sampah sudah terpilah.',
+    waktu: '08:20',
+    icon: Icons.local_shipping_outlined,
+    bg: const Color(0xFFFADBD0),
+    fg: AppColors.orange,
+  ),
+  _Notif(
+    grup: 'HARI INI',
+    judul: 'Update Harga',
+    isi: 'Kabar gembira! Harga Plastik PET naik hari ini menjadi Rp 4.500/kg.',
+    waktu: '06:00',
+    icon: Icons.trending_up_rounded,
+    bg: const Color(0xFFDCE8FA),
+    fg: const Color(0xFF3B6FD4),
+    dibaca: true,
+  ),
+  _Notif(
+    grup: 'KEMARIN',
+    judul: 'Setoran Berhasil',
+    isi: 'Setoran 05689 telah diverifikasi. Tabungan Anda bertambah Rp 8.200.',
+    waktu: 'Kemarin',
+    icon: Icons.check_circle_rounded,
+    bg: const Color(0xFFE6E0CF),
+    fg: AppColors.muted,
+    dibaca: true,
+  ),
+  _Notif(
+    grup: 'KEMARIN',
+    judul: 'Tips Memilah',
+    isi: 'Cara jitu membersihkan botol minyak agar diterima di bank sampah.',
+    waktu: 'Kemarin',
+    icon: Icons.lightbulb_outline_rounded,
+    bg: const Color(0xFFE6E0CF),
+    fg: AppColors.muted,
+    dibaca: true,
+  ),
+  _Notif(
+    grup: '23 SEPT 2026',
+    judul: 'Setoran Berhasil',
+    isi: 'Setoran 05689 telah diverifikasi. Tabungan Anda bertambah Rp 8.200.',
+    waktu: '23 Sep',
+    icon: Icons.check_circle_rounded,
+    bg: const Color(0xFFE6E0CF),
+    fg: AppColors.muted,
+    dibaca: true,
+  ),
+  _Notif(
+    grup: '23 SEPT 2026',
+    judul: 'Tips Memilah',
+    isi: 'Cara jitu membersihkan botol minyak agar diterima di bank sampah.',
+    waktu: '23 Sep',
+    icon: Icons.lightbulb_outline_rounded,
+    bg: const Color(0xFFE6E0CF),
+    fg: AppColors.muted,
+    dibaca: true,
+  ),
+]);
+
+void _tandaiDibaca(_Notif n) {
+  n.dibaca = true;
+  notifikasi.value = List.of(notifikasi.value); // beri tahu pendengar
+}
+
+void _tandaiSemuaDibaca() {
+  for (final n in notifikasi.value) {
+    n.dibaca = true;
+  }
+  notifikasi.value = List.of(notifikasi.value);
+}
+
+class NotifikasiPage extends StatelessWidget {
+  final VoidCallback? onBack;
+  const NotifikasiPage({super.key, this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<_Notif>>(
+      valueListenable: notifikasi,
+      builder: (context, list, _) {
+        // urutan grup mengikuti urutan data
+        final grups = <String>[];
+        for (final n in list) {
+          if (!grups.contains(n.grup)) grups.add(n.grup);
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _topBar(list.any((n) => !n.dibaca)),
+              const SizedBox(height: 18),
+              for (final g in grups) ...[
+                _grupHeader(g),
+                const SizedBox(height: 12),
+                for (final n in list.where((n) => n.grup == g)) _tile(n),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _topBar(bool adaBelumDibaca) {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: onBack,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.dark, width: 1.5),
+            ),
+            child: const Icon(
+              Icons.arrow_back_rounded,
+              size: 20,
+              color: AppColors.dark,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text('Notifikasi', style: display(size: 22))),
+        GestureDetector(
+          onTap: adaBelumDibaca ? _tandaiSemuaDibaca : null,
+          child: Text(
+            'TANDAI SEMUA DIBACA',
+            style: TextStyle(
+              fontSize: 9,
+              letterSpacing: .5,
+              fontWeight: FontWeight.w800,
+              color: adaBelumDibaca
+                  ? AppColors.orange
+                  : AppColors.muted.withValues(alpha: .6),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _grupHeader(String text) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 9.5,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+            color: AppColors.muted,
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Expanded(child: Divider(color: _line, height: 1)),
+      ],
+    );
+  }
+
+  Widget _tile(_Notif n) {
+    final baru = !n.dibaca;
+    return GestureDetector(
+      onTap: baru ? () => _tandaiDibaca(n) : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          // belum dibaca = putih menonjol, sudah dibaca = pudar
+          color: baru ? Colors.white : Colors.white.withValues(alpha: .45),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: baru ? _line : Colors.transparent),
+          boxShadow: baru
+              ? const [BoxShadow(color: Colors.black12, blurRadius: 6)]
+              : null,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: n.bg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(n.icon, size: 19, color: n.fg),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    n.judul,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.dark,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    n.isi,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      height: 1.35,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  n.waktu,
+                  style: const TextStyle(fontSize: 9, color: AppColors.muted),
+                ),
+                if (baru) ...[
+                  const SizedBox(width: 5),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppColors.orange,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
