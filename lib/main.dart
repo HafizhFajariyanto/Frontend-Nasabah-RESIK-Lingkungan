@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -270,8 +272,11 @@ class _SetorPageState extends State<SetorPage> {
       (i) => i,
     ).where((i) => !selected.contains(i));
     if (sisa.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Semua jenis sampah sudah ditambahkan')),
+      showAppPopup(
+        context,
+        type: PopupType.info,
+        title: 'Semua Jenis Sudah Dipilih',
+        message: 'Semua kategori sampah sudah ada di setoranmu.',
       );
       return;
     }
@@ -280,53 +285,43 @@ class _SetorPageState extends State<SetorPage> {
 
   Future<void> _konfirmasi() async {
     if (totalKg <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Isi estimasi berat terlebih dahulu')),
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Berat Belum Diisi',
+        message: 'Isi estimasi berat sampah terlebih dahulu sebelum konfirmasi.',
       );
       return;
     }
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black38,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 30),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 26),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.dark, width: 2.5),
-                ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  size: 34,
-                  color: AppColors.dark,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'SETORAN BERHASIL',
-                style: display(size: 16, weight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ),
+
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.konfirmasi,
+      title: 'Konfirmasi Setoran?',
+      message: 'Pastikan data setoran berikut sudah benar.',
+      content: PopupRincian(
+        rows: [
+          for (final i in selected)
+            MapEntry(
+              _daftarJenis[i].nama.replaceAll('\n', ' '),
+              '${_fmtKg(_kg(i))} kg',
+            ),
+          MapEntry('Total Berat', '${_fmtKg(totalKg)} kg'),
+          MapEntry('Total Saldo', rupiah(totalSaldo)),
+        ],
       ),
+      confirmLabel: 'Ya, Setor',
+      cancelLabel: 'Periksa Lagi',
     );
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // tutup popup
+    if (ok != true || !mounted) return;
+
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Setoran Berhasil',
+      message: 'Saldo ${rupiah(totalSaldo)} masuk setelah petugas menimbang.',
+      autoClose: const Duration(seconds: 2),
+    );
   }
 
   // ---------- tampilan ----------
@@ -1044,9 +1039,9 @@ class HomePage extends StatelessWidget {
           _saldoCard(),
           _targetCard(),
           _chartCard(),
-          _priceCard(),
+          _priceCard(context),
           _transaksiCard(),
-          _mapCard(),
+          _mapCard(context),
         ],
       ),
     );
@@ -1322,7 +1317,43 @@ class HomePage extends StatelessWidget {
   }
 
   // ---------- Harga hari ini ----------
-  Widget _priceCard() {
+  void _semuaHarga(BuildContext context) {
+    showAppPopup(
+      context,
+      type: PopupType.info,
+      title: 'Harga Sampah Hari Ini',
+      message: 'Harga dapat berubah setiap hari mengikuti pasar.',
+      content: const PopupRincian(
+        highlightLast: false,
+        rows: [
+          MapEntry('Organik Dapur', 'Rp1.000/kg'),
+          MapEntry('Plastik PET', 'Rp3.500/kg'),
+          MapEntry('Kertas & Kardus', 'Rp2.200/kg'),
+        ],
+      ),
+      confirmLabel: 'Tutup',
+    );
+  }
+
+  void _infoLokasi(BuildContext context) {
+    showAppPopup(
+      context,
+      type: PopupType.info,
+      title: 'Pos Melati Indah',
+      message: 'Jl. Bigum-guza Barat No. 12, sekitar 450 m dari lokasimu.',
+      content: const PopupRincian(
+        highlightLast: false,
+        rows: [
+          MapEntry('Status', 'Buka'),
+          MapEntry('Tutup', '17.00'),
+          MapEntry('Koordinat', '-6.3979, 106.8210'),
+        ],
+      ),
+      confirmLabel: 'Tutup',
+    );
+  }
+
+  Widget _priceCard(BuildContext context) {
     return AppCard(
       child: Column(
         children: [
@@ -1374,7 +1405,7 @@ class HomePage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () {},
+              onPressed: () => _semuaHarga(context),
               child: const Text('Lihat Semua Harga  >'),
             ),
           ),
@@ -1420,7 +1451,7 @@ class HomePage extends StatelessWidget {
   }
 
   // ---------- Titik setor terdekat ----------
-  Widget _mapCard() {
+  Widget _mapCard(BuildContext context) {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1476,18 +1507,24 @@ class HomePage extends StatelessWidget {
                             style: TextStyle(fontSize: 10),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.dark,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'Lihat Lokasi',
-                            style: TextStyle(color: Colors.white, fontSize: 10),
+                        GestureDetector(
+                          onTap: () => _infoLokasi(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.dark,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Lihat Lokasi',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1750,60 +1787,43 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
   }
 
   Future<void> _submit() async {
-    String? error;
     if (amount < minimal) {
-      error = 'Minimal penarikan ${rupiah(minimal)}';
-    } else if (amount > saldo) {
-      error = 'Saldo tidak cukup';
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Penarikan Gagal',
+        message: 'Minimal penarikan adalah ${rupiah(minimal)}.',
+      );
+      return;
     }
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
+    if (amount > saldo) {
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Saldo Tidak Cukup',
+        message:
+            'Saldo tersedia ${rupiah(saldo)}, sedangkan nominal penarikan ${rupiah(amount)}.',
       );
       return;
     }
 
-    // popup "PENUKARAN BERHASIL"
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black38,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 30),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.dark, width: 1.5),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.dark, width: 2.5),
-                ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  size: 32,
-                  color: AppColors.dark,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'PENUKARAN BERHASIL',
-                style: display(size: 14, weight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ),
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.konfirmasi,
+      title: 'Tukar Saldo Sekarang?',
+      message: 'Periksa kembali rincian penarikan berikut.',
+      content: PopupRincian(
+        rows: [
+          MapEntry('Tujuan', providers[provider]),
+          MapEntry('Nominal', rupiah(amount)),
+          MapEntry('Biaya Layanan', rupiah(biayaLayanan)),
+          MapEntry('Total Diterima', rupiah(amount)),
+        ],
       ),
+      confirmLabel: 'Ya, Tukar',
+      cancelLabel: 'Batal',
     );
+    if (ok != true || !mounted) return;
 
     // catat ke riwayat & kurangi saldo
     const bulan = [
@@ -1812,18 +1832,24 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
     ];
     final now = DateTime.now();
     final nomor = method == 0 ? '0812***' : '1234***';
+    final tujuan = providers[provider];
+    final nominal = amount;
     setState(() {
-      saldo -= amount;
+      saldo -= nominal;
       history.insert(0, {
-        'name': '${providers[provider]} - $nomor',
+        'name': '$tujuan - $nomor',
         'date': '${now.day} ${bulan[now.month - 1]} ${now.year}',
-        'amount': amount,
+        'amount': nominal,
       });
     });
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // tutup popup
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Penukaran Berhasil',
+      message: '${rupiah(nominal)} sedang dikirim ke $tujuan.',
+      autoClose: const Duration(seconds: 2),
+    );
   }
 
   @override
@@ -2483,7 +2509,7 @@ class RiwayatPage extends StatelessWidget {
           for (final g in _riwayat) ...[
             _grupHeader(g.label),
             const SizedBox(height: 12),
-            for (final t in g.items) _trxTile(t),
+            for (final t in g.items) _trxTile(context, t),
             const SizedBox(height: 6),
           ],
         ],
@@ -2604,7 +2630,37 @@ class RiwayatPage extends StatelessWidget {
     );
   }
 
-  Widget _trxTile(_Trx t) {
+  Widget _trxTile(BuildContext context, _Trx t) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () => _detail(context, t),
+    child: _trxTileBody(t),
+  );
+
+  void _detail(BuildContext context, _Trx t) {
+    final selesai = t.status == 'Selesai';
+    showAppPopup(
+      context,
+      type: selesai ? PopupType.sukses : PopupType.peringatan,
+      title: t.judul.replaceAll('\n', ' '),
+      message: selesai
+          ? 'Transaksi ini sudah selesai diproses.'
+          : 'Transaksi sedang diproses. Mohon tunggu sebentar.',
+      content: PopupRincian(
+        rows: [
+          MapEntry('Waktu', t.jam),
+          MapEntry('Status', t.status),
+          MapEntry('Keterangan', t.sub.replaceAll('\n', ' ')),
+          MapEntry(
+            t.masuk ? 'Saldo Masuk' : 'Saldo Keluar',
+            '${t.masuk ? '+' : '-'}${rupiah(t.nominal)}',
+          ),
+        ],
+      ),
+      confirmLabel: 'Tutup',
+    );
+  }
+
+  Widget _trxTileBody(_Trx t) {
     final selesai = t.status == 'Selesai';
     final statusColor = selesai ? AppColors.green : AppColors.orange;
 
@@ -2908,12 +2964,64 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Future<void> _tambah() async {
     final r = await _bukaForm();
-    if (r != null) setState(() => rekening.add(r));
+    if (r == null || !mounted) return;
+    setState(() => rekening.add(r));
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Rekening Ditambahkan',
+      message: '${r.metode} berhasil ditambahkan sebagai metode pencairan.',
+      autoClose: const Duration(milliseconds: 1800),
+    );
   }
 
   Future<void> _ganti(int i) async {
     final r = await _bukaForm(awal: rekening[i]);
-    if (r != null) setState(() => rekening[i] = r);
+    if (r == null || !mounted) return;
+    setState(() => rekening[i] = r);
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Metode Diperbarui',
+      message: 'Rekening pencairan berhasil diganti ke ${r.metode}.',
+      autoClose: const Duration(milliseconds: 1800),
+    );
+  }
+
+  Future<void> _jadikanUtama(int i) async {
+    if (utama == i) return;
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.konfirmasi,
+      title: 'Jadikan Metode Utama?',
+      message:
+          '${rekening[i].metode} akan dipakai sebagai rekening pencairan utama.',
+      confirmLabel: 'Ya, Jadikan Utama',
+      cancelLabel: 'Batal',
+    );
+    if (ok == true && mounted) setState(() => utama = i);
+  }
+
+  Future<void> _keluar() async {
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.konfirmasi,
+      title: 'Keluar dari Akun?',
+      message: 'Kamu perlu masuk lagi untuk memakai RESIK.',
+      confirmLabel: 'Ya, Keluar',
+      cancelLabel: 'Batal',
+    );
+    if (ok == true && mounted) _goLogin(context);
+  }
+
+  void _ubahLokasi() {
+    showAppPopup(
+      context,
+      type: PopupType.info,
+      title: 'Ubah Lokasi',
+      message:
+          'Pilih titik lewat peta akan tersedia di versi berikutnya. Koordinat saat ini: -6.3979, 106.8210.',
+    );
   }
 
   // ---------- tampilan ----------
@@ -3142,20 +3250,23 @@ class _ProfilPageState extends State<ProfilPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'Koordinat: -6.3979, 106.8210',
                       style: TextStyle(fontSize: 9, color: AppColors.muted),
                     ),
                   ),
-                  Text(
-                    'Ubah Lokasi',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.orange,
+                  GestureDetector(
+                    onTap: _ubahLokasi,
+                    child: const Text(
+                      'Ubah Lokasi',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.orange,
+                      ),
                     ),
                   ),
                 ],
@@ -3194,7 +3305,7 @@ class _ProfilPageState extends State<ProfilPage> {
               const Spacer(),
               // ketuk lingkaran ini untuk menjadikan rekening utama
               GestureDetector(
-                onTap: () => setState(() => utama = i),
+                onTap: () => _jadikanUtama(i),
                 child: Container(
                   width: 18,
                   height: 18,
@@ -3315,7 +3426,7 @@ class _ProfilPageState extends State<ProfilPage> {
 
   Widget _keluarButton() {
     return GestureDetector(
-      onTap: () => _goLogin(context),
+      onTap: _keluar,
       child: Container(
         height: 46,
         width: double.infinity,
@@ -3653,7 +3764,7 @@ class NotifikasiPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _topBar(list.any((n) => !n.dibaca)),
+              _topBar(context, list.any((n) => !n.dibaca)),
               const SizedBox(height: 18),
               for (final g in grups) ...[
                 _grupHeader(g),
@@ -3668,7 +3779,7 @@ class NotifikasiPage extends StatelessWidget {
     );
   }
 
-  Widget _topBar(bool adaBelumDibaca) {
+  Widget _topBar(BuildContext context, bool adaBelumDibaca) {
     return Row(
       children: [
         GestureDetector(
@@ -3691,7 +3802,18 @@ class NotifikasiPage extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(child: Text('Notifikasi', style: display(size: 22))),
         GestureDetector(
-          onTap: adaBelumDibaca ? _tandaiSemuaDibaca : null,
+          onTap: adaBelumDibaca
+              ? () {
+                  _tandaiSemuaDibaca();
+                  showAppPopup(
+                    context,
+                    type: PopupType.sukses,
+                    title: 'Semua Sudah Dibaca',
+                    message: 'Semua notifikasi ditandai sudah dibaca.',
+                    autoClose: const Duration(milliseconds: 1400),
+                  );
+                }
+              : null,
           child: Text(
             'TANDAI SEMUA DIBACA',
             style: TextStyle(
@@ -3976,7 +4098,16 @@ class _ChatPageState extends State<ChatPage> {
     _scrollBawah();
   }
 
-  void _hapusChat() {
+  Future<void> _hapusChat() async {
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.konfirmasi,
+      title: 'Hapus Percakapan?',
+      message: 'Semua pesan di chat ini akan dihapus dan tidak bisa dikembalikan.',
+      confirmLabel: 'Ya, Hapus',
+      cancelLabel: 'Batal',
+    );
+    if (ok != true || !mounted) return;
     setState(() {
       _chatLog
         ..clear()
@@ -4306,8 +4437,11 @@ class _ChatPageState extends State<ChatPage> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Lampiran belum tersedia')),
+            onTap: () => showAppPopup(
+              context,
+              type: PopupType.info,
+              title: 'Lampiran Belum Tersedia',
+              message: 'Fitur kirim foto sampah akan hadir di versi berikutnya.',
             ),
             child: Container(
               width: 32,
@@ -4354,6 +4488,358 @@ class _ChatPageState extends State<ChatPage> {
                 Icons.send_rounded,
                 size: 17,
                 color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// POPUP & BANNER (dipakai oleh semua tombol di aplikasi)
+// ---------------------------------------------------------------
+const _merah = Color(0xFFC62828);
+const _merahMuda = Color(0xFFFDE8E6);
+
+/// Jenis popup: menentukan warna & ikon.
+enum PopupType { sukses, error, peringatan, info, konfirmasi }
+
+class _PopupStyle {
+  final Color warna;
+  final Color latar;
+  final IconData ikon;
+  const _PopupStyle(this.warna, this.latar, this.ikon);
+}
+
+_PopupStyle _gaya(PopupType t) {
+  switch (t) {
+    case PopupType.sukses:
+      return const _PopupStyle(
+        AppColors.green,
+        Color(0xFFE3EDD9),
+        Icons.check_rounded,
+      );
+    case PopupType.error:
+      return const _PopupStyle(_merah, _merahMuda, Icons.close_rounded);
+    case PopupType.peringatan:
+      return const _PopupStyle(
+        Color(0xFFB77900),
+        Color(0xFFFBEBC8),
+        Icons.priority_high_rounded,
+      );
+    case PopupType.info:
+      return const _PopupStyle(
+        Color(0xFF3B6FD4),
+        Color(0xFFDCE8FA),
+        Icons.info_outline_rounded,
+      );
+    case PopupType.konfirmasi:
+      return const _PopupStyle(
+        AppColors.orange,
+        Color(0xFFFADBD0),
+        Icons.help_outline_rounded,
+      );
+  }
+}
+
+/// Tampilkan popup. Hasilnya:
+///   true  = tombol utama ditekan (atau popup tertutup otomatis)
+///   false = tombol batal ditekan
+///   null  = popup ditutup dengan mengetuk area gelap
+///
+/// Contoh:
+///   final ok = await showAppPopup(context,
+///       type: PopupType.konfirmasi,
+///       title: 'Keluar?', message: 'Yakin ingin keluar?',
+///       confirmLabel: 'Ya', cancelLabel: 'Batal');
+///   if (ok == true) { ... }
+Future<bool?> showAppPopup(
+  BuildContext context, {
+  required PopupType type,
+  required String title,
+  required String message,
+  Widget? content, // isi tambahan, mis. PopupRincian
+  String? confirmLabel, // null + tanpa cancelLabel = tombol "Mengerti"
+  String? cancelLabel,
+  Duration? autoClose, // kalau diisi, popup menutup sendiri tanpa tombol
+  bool dismissible = true,
+}) {
+  return showGeneralDialog<bool>(
+    context: context,
+    barrierDismissible: dismissible,
+    barrierLabel: 'Tutup',
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, __, ___) => _PopupCard(
+      type: type,
+      title: title,
+      message: message,
+      content: content,
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
+      autoClose: autoClose,
+    ),
+    transitionBuilder: (_, anim, __, child) => FadeTransition(
+      opacity: anim,
+      child: ScaleTransition(
+        scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+        child: child,
+      ),
+    ),
+  );
+}
+
+class _PopupCard extends StatefulWidget {
+  final PopupType type;
+  final String title;
+  final String message;
+  final Widget? content;
+  final String? confirmLabel;
+  final String? cancelLabel;
+  final Duration? autoClose;
+  const _PopupCard({
+    required this.type,
+    required this.title,
+    required this.message,
+    this.content,
+    this.confirmLabel,
+    this.cancelLabel,
+    this.autoClose,
+  });
+
+  @override
+  State<_PopupCard> createState() => _PopupCardState();
+}
+
+class _PopupCardState extends State<_PopupCard> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.autoClose;
+    if (d != null) {
+      _timer = Timer(d, () {
+        if (mounted) Navigator.of(context).pop(true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Widget _ikon(_PopupStyle g) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 650),
+    curve: Curves.elasticOut,
+    builder: (_, v, child) => Transform.scale(scale: v, child: child),
+    child: Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(color: g.latar, shape: BoxShape.circle),
+      child: Center(
+        child: Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(color: g.warna, shape: BoxShape.circle),
+          child: Icon(g.ikon, size: 30, color: Colors.white),
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final g = _gaya(widget.type);
+    final adaTombol = widget.autoClose == null;
+    final utama = widget.confirmLabel ?? 'Mengerti';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Material(
+          color: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              decoration: BoxDecoration(
+                color: _card,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.dark, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(color: AppColors.dark, offset: Offset(0, 6)),
+                ],
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ikon(g),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.title,
+                      textAlign: TextAlign.center,
+                      style: display(size: 19),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        height: 1.5,
+                        color: AppColors.muted,
+                      ),
+                    ),
+                    if (widget.content != null) widget.content!,
+                    if (adaTombol) ...[
+                      const SizedBox(height: 20),
+                      HardButton(
+                        label: utama,
+                        onTap: () => Navigator.of(context).pop(true),
+                      ),
+                      if (widget.cancelLabel != null) ...[
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).pop(false),
+                          child: Container(
+                            height: 46,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.dark,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              widget.cancelLabel!,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.dark,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kotak rincian di dalam popup (label kiri, nilai kanan).
+/// Baris terakhir ditonjolkan kalau highlightLast = true.
+class PopupRincian extends StatelessWidget {
+  final List<MapEntry<String, String>> rows;
+  final bool highlightLast;
+  const PopupRincian({
+    super.key,
+    required this.rows,
+    this.highlightLast = true,
+  });
+
+  List<Widget> _baris(int i) {
+    final last = highlightLast && i == rows.length - 1;
+    return [
+      if (last && i > 0)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          child: Divider(height: 1, color: Color(0xFFD8D2C2)),
+        ),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              rows[i].key,
+              style: TextStyle(
+                fontSize: last ? 12 : 11,
+                fontWeight: last ? FontWeight.bold : FontWeight.normal,
+                color: last ? AppColors.dark : AppColors.muted,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                rows[i].value,
+                textAlign: TextAlign.right,
+                style: last
+                    ? display(size: 16, color: AppColors.orange)
+                    : const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.dark,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 14),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEDE8DA),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: _line),
+    ),
+    child: Column(
+      children: [for (int i = 0; i < rows.length; i++) ..._baris(i)],
+    ),
+  );
+}
+
+/// Banner pesan di dalam halaman (mis. error login).
+class AlertBanner extends StatelessWidget {
+  final String message;
+  final PopupType type;
+  const AlertBanner(this.message, {super.key, this.type = PopupType.error});
+
+  @override
+  Widget build(BuildContext context) {
+    final g = _gaya(type);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: g.latar,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: g.warna.withValues(alpha: .35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 15, color: g.warna),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 10.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: g.warna,
               ),
             ),
           ),
@@ -4525,15 +5011,19 @@ class OrDivider extends StatelessWidget {
 class LabeledField extends StatelessWidget {
   final String label, hint;
   final bool obscure;
+  final bool hasError;
   final Widget? trailingLabel;
   final TextInputType? keyboard;
+  final TextEditingController? controller;
   const LabeledField({
     super.key,
     required this.label,
     required this.hint,
     this.obscure = false,
+    this.hasError = false,
     this.trailingLabel,
     this.keyboard,
+    this.controller,
   });
 
   @override
@@ -4547,10 +5037,10 @@ class LabeledField extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.bold,
-                color: AppColors.dark,
+                color: hasError ? _merah : AppColors.dark,
               ),
             ),
             if (trailingLabel != null) trailingLabel!,
@@ -4558,6 +5048,7 @@ class LabeledField extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         TextField(
+          controller: controller,
           obscureText: obscure,
           keyboardType: keyboard,
           style: const TextStyle(fontSize: 13),
@@ -4568,7 +5059,7 @@ class LabeledField extends StatelessWidget {
               color: AppColors.muted.withValues(alpha: .6),
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: hasError ? _merahMuda : Colors.white,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -4576,11 +5067,14 @@ class LabeledField extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _line),
+              borderSide: BorderSide(color: hasError ? _merah : _line),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.dark, width: 1.5),
+              borderSide: BorderSide(
+                color: hasError ? _merah : AppColors.dark,
+                width: 1.5,
+              ),
             ),
           ),
         ),
@@ -4696,6 +5190,20 @@ class AuthTopBar extends StatelessWidget {
 // ---------------------------------------------------------------
 // 1. LOGIN
 // ---------------------------------------------------------------
+
+/// Tombol "Lanjut dengan Google" (dipakai di Login & Registrasi).
+Future<void> _loginGoogle(BuildContext context) async {
+  final ok = await showAppPopup(
+    context,
+    type: PopupType.konfirmasi,
+    title: 'Lanjut dengan Google?',
+    message: 'Kamu akan masuk memakai akun Google di perangkat ini.',
+    confirmLabel: 'Lanjutkan',
+    cancelLabel: 'Batal',
+  );
+  if (ok == true && context.mounted) _goHome(context);
+}
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -4704,29 +5212,139 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final userC = TextEditingController();
+  final passC = TextEditingController();
   bool remember = false, hide = true;
+  String? error; // pesan banner merah
+  bool errUser = false, errPass = false;
+  int gagal = 0; // jumlah percobaan gagal
 
-  InputDecoration _dec(String hint, IconData icon, {Widget? suffix}) =>
-      InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          fontSize: 12,
-          color: AppColors.muted.withValues(alpha: .6),
-        ),
-        prefixIcon: Icon(icon, size: 16, color: AppColors.muted),
-        suffixIcon: suffix,
-        filled: true,
-        fillColor: _card,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.dark, width: 1.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.orange, width: 1.5),
-        ),
-      );
+  @override
+  void dispose() {
+    userC.dispose();
+    passC.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _dec(
+    String hint,
+    IconData icon, {
+    Widget? suffix,
+    bool err = false,
+  }) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(
+      fontSize: 12,
+      color: AppColors.muted.withValues(alpha: .6),
+    ),
+    prefixIcon: Icon(icon, size: 16, color: err ? _merah : AppColors.muted),
+    suffixIcon: suffix,
+    filled: true,
+    fillColor: err ? _merahMuda : _card,
+    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: err ? _merah : AppColors.dark, width: 1.5),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: err ? _merah : AppColors.orange,
+        width: 1.5,
+      ),
+    ),
+  );
+
+  void _bersih(String _) {
+    if (error != null) {
+      setState(() {
+        error = null;
+        errUser = false;
+        errPass = false;
+      });
+    }
+  }
+
+  Future<void> _masuk() async {
+    final u = userC.text.trim();
+    final p = passC.text;
+
+    if (u.isEmpty || p.isEmpty) {
+      setState(() {
+        errUser = u.isEmpty;
+        errPass = p.isEmpty;
+        error = 'Lengkapi WhatsApp/email dan password terlebih dahulu.';
+      });
+      return;
+    }
+
+    // DEMO: password < 6 karakter dianggap salah.
+    // Ganti bagian ini dengan pemanggilan API login.
+    if (p.length < 6) {
+      gagal++;
+      if (gagal >= 3) {
+        gagal = 0;
+        setState(() {
+          error = null;
+          errUser = false;
+          errPass = false;
+        });
+        final reset = await showAppPopup(
+          context,
+          type: PopupType.peringatan,
+          title: 'Terlalu Banyak Percobaan',
+          message:
+              'Demi keamanan akunmu, coba lagi beberapa menit lagi atau reset password.',
+          confirmLabel: 'Reset Password',
+          cancelLabel: 'Tutup',
+        );
+        if (reset == true && mounted) _lupaPassword();
+        return;
+      }
+      setState(() {
+        errUser = true;
+        errPass = true;
+        error = 'Email atau password salah. Periksa kembali dan coba lagi.';
+      });
+      return;
+    }
+
+    setState(() {
+      error = null;
+      errUser = false;
+      errPass = false;
+      gagal = 0;
+    });
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Berhasil Masuk',
+      message: 'Selamat datang kembali di RESIK!',
+      autoClose: const Duration(milliseconds: 1400),
+    );
+    if (!mounted) return;
+    _goHome(context);
+  }
+
+  Future<void> _lupaPassword() async {
+    final ok = await showAppPopup(
+      context,
+      type: PopupType.info,
+      title: 'Reset Password',
+      message:
+          'Kami akan mengirim tautan reset password ke WhatsApp atau email yang terdaftar.',
+      confirmLabel: 'Kirim Tautan',
+      cancelLabel: 'Batal',
+    );
+    if (ok != true || !mounted) return;
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Tautan Terkirim',
+      message: 'Silakan cek WhatsApp atau emailmu untuk mengatur ulang password.',
+      autoClose: const Duration(seconds: 2),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -4761,20 +5379,30 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Column(
                   children: [
+                    if (error != null) ...[
+                      AlertBanner(error!),
+                      const SizedBox(height: 12),
+                    ],
                     TextField(
+                      controller: userC,
+                      onChanged: _bersih,
                       style: const TextStyle(fontSize: 13),
                       decoration: _dec(
                         'WhatsApp atau Email',
                         Icons.phone_outlined,
+                        err: errUser,
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
+                      controller: passC,
+                      onChanged: _bersih,
                       obscureText: hide,
                       style: const TextStyle(fontSize: 13),
                       decoration: _dec(
                         'Password',
                         Icons.lock_outline,
+                        err: errPass,
                         suffix: IconButton(
                           icon: Icon(
                             hide
@@ -4808,12 +5436,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const Spacer(),
-                        const Text(
-                          'Lupa Password?',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.orange,
+                        GestureDetector(
+                          onTap: _lupaPassword,
+                          child: const Text(
+                            'Lupa Password?',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.orange,
+                            ),
                           ),
                         ),
                       ],
@@ -4822,12 +5453,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     HardButton(
                       label: 'Masuk',
                       trailing: Icons.arrow_forward,
-                      onTap: () => _goHome(context),
+                      onTap: _masuk,
                     ),
                     const SizedBox(height: 14),
                     const OrDivider(),
                     const SizedBox(height: 14),
-                    GoogleButton(onTap: () => _goHome(context)),
+                    GoogleButton(onTap: () => _loginGoogle(context)),
                   ],
                 ),
               ),
@@ -4857,8 +5488,59 @@ class _LoginScreenState extends State<LoginScreen> {
 // ---------------------------------------------------------------
 // 2. REGISTRASI STEP 1 - DATA DIRI
 // ---------------------------------------------------------------
-class RegisterStep1 extends StatelessWidget {
+class RegisterStep1 extends StatefulWidget {
   const RegisterStep1({super.key});
+
+  @override
+  State<RegisterStep1> createState() => _RegisterStep1State();
+}
+
+class _RegisterStep1State extends State<RegisterStep1> {
+  final namaC = TextEditingController();
+  final hpC = TextEditingController();
+  final emailC = TextEditingController();
+  final alamatC = TextEditingController();
+  bool errNama = false, errHp = false, errEmail = false;
+
+  @override
+  void dispose() {
+    for (final c in [namaC, hpC, emailC, alamatC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _lanjut() {
+    final nama = namaC.text.trim();
+    final hp = hpC.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final email = emailC.text.trim();
+    final emailOk =
+        email.isEmpty || RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+
+    setState(() {
+      errNama = nama.isEmpty;
+      errHp = hp.length < 9;
+      errEmail = !emailOk;
+    });
+
+    if (errNama || errHp || errEmail) {
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Data Belum Lengkap',
+        message: errNama
+            ? 'Nama lengkap wajib diisi.'
+            : errHp
+            ? 'Nomor WhatsApp belum valid (minimal 9 digit).'
+            : 'Format email belum benar.',
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => RegisterStep2(nama: nama)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -4911,29 +5593,45 @@ class RegisterStep1 extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Nama Lengkap',
                     hint: 'Contoh: Andi Wijaya',
+                    controller: namaC,
+                    hasError: errNama,
                   ),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Nomor WhatsApp',
                     hint: '0812xxxx',
                     keyboard: TextInputType.phone,
+                    controller: hpC,
+                    hasError: errHp,
                   ),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Email',
                     hint: 'nama@email.com',
                     keyboard: TextInputType.emailAddress,
+                    controller: emailC,
+                    hasError: errEmail,
                   ),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Alamat / Kelurahan',
                     hint: 'Cari kelurahan Anda',
-                    trailingLabel: Text(
-                      'Pakai lokasi saya',
-                      style: TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.orange,
+                    controller: alamatC,
+                    trailingLabel: GestureDetector(
+                      onTap: () => showAppPopup(
+                        context,
+                        type: PopupType.info,
+                        title: 'Pakai Lokasi Saya',
+                        message:
+                            'Deteksi lokasi otomatis akan tersedia di versi berikutnya. Untuk sekarang, ketik kelurahanmu secara manual.',
+                      ),
+                      child: const Text(
+                        'Pakai lokasi saya',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.orange,
+                        ),
                       ),
                     ),
                   ),
@@ -4941,17 +5639,11 @@ class RegisterStep1 extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            HardButton(
-              label: 'Lanjut',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RegisterStep2()),
-              ),
-            ),
+            HardButton(label: 'Lanjut', onTap: _lanjut),
             const SizedBox(height: 14),
             const OrDivider(),
             const SizedBox(height: 14),
-            GoogleButton(background: _card, onTap: () => _goHome(context)),
+            GoogleButton(background: _card, onTap: () => _loginGoogle(context)),
             const SizedBox(height: 16),
             BottomLink(
               text: 'Sudah punya akun?',
@@ -4969,14 +5661,25 @@ class RegisterStep1 extends StatelessWidget {
 // 3. REGISTRASI STEP 2 - BUAT PASSWORD
 // ---------------------------------------------------------------
 class RegisterStep2 extends StatefulWidget {
-  const RegisterStep2({super.key});
+  final String nama;
+  const RegisterStep2({super.key, this.nama = ''});
 
   @override
   State<RegisterStep2> createState() => _RegisterStep2State();
 }
 
 class _RegisterStep2State extends State<RegisterStep2> {
+  final passC = TextEditingController();
+  final konfC = TextEditingController();
   bool agree = false;
+  bool errPass = false, errKonf = false;
+
+  @override
+  void dispose() {
+    passC.dispose();
+    konfC.dispose();
+    super.dispose();
+  }
 
   TextSpan _link(String t) => TextSpan(
     text: t,
@@ -4987,18 +5690,65 @@ class _RegisterStep2State extends State<RegisterStep2> {
     ),
   );
 
-  void _submit() {
-    if (!agree) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Setujui Syarat & Ketentuan terlebih dahulu'),
-        ),
+  Future<void> _submit() async {
+    final p = passC.text;
+    final k = konfC.text;
+
+    if (p.length < 6) {
+      setState(() {
+        errPass = true;
+        errKonf = false;
+      });
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Password Terlalu Pendek',
+        message: 'Gunakan minimal 6 karakter agar akunmu aman.',
       );
       return;
     }
+    if (p != k) {
+      setState(() {
+        errPass = false;
+        errKonf = true;
+      });
+      showAppPopup(
+        context,
+        type: PopupType.error,
+        title: 'Password Tidak Sama',
+        message: 'Konfirmasi password harus sama dengan password.',
+      );
+      return;
+    }
+    setState(() {
+      errPass = false;
+      errKonf = false;
+    });
+    if (!agree) {
+      showAppPopup(
+        context,
+        type: PopupType.peringatan,
+        title: 'Syarat & Ketentuan',
+        message:
+            'Setujui Syarat & Ketentuan dan Kebijakan Privasi terlebih dahulu.',
+      );
+      return;
+    }
+
+    await showAppPopup(
+      context,
+      type: PopupType.sukses,
+      title: 'Pendaftaran Berhasil',
+      message: 'Akunmu sedang disiapkan...',
+      autoClose: const Duration(milliseconds: 1500),
+    );
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const SuccessScreen()),
+      MaterialPageRoute(
+        builder: (_) =>
+            SuccessScreen(name: widget.nama.isEmpty ? 'Sobat RESIK' : widget.nama),
+      ),
     );
   }
 
@@ -5034,15 +5784,19 @@ class _RegisterStep2State extends State<RegisterStep2> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Password',
                     hint: '••••••••',
                     obscure: true,
+                    controller: passC,
+                    hasError: errPass,
                   ),
-                  const LabeledField(
+                  LabeledField(
                     label: 'Konfirmasi Password',
                     hint: '••••••••',
                     obscure: true,
+                    controller: konfC,
+                    hasError: errKonf,
                   ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
