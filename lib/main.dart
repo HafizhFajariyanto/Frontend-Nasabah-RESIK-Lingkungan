@@ -92,11 +92,23 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int index = 0;
   bool showNotif = false; // true = tampilkan halaman Notifikasi
+  bool showChat = false; // true = tampilkan chatbot
+
+  /// Dipanggil oleh LeafChatButton (tombol daun) di semua halaman.
+  void bukaChat() => setState(() {
+    showChat = true;
+    showNotif = false;
+  });
 
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      HomePage(onNotif: () => setState(() => showNotif = true)),
+      HomePage(
+        onNotif: () => setState(() {
+          showNotif = true;
+          showChat = false;
+        }),
+      ),
       TukarSaldoPage(onBack: () => setState(() => index = 0)),
       SetorPage(onBack: () => setState(() => index = 0)),
       RiwayatPage(onBack: () => setState(() => index = 0)),
@@ -105,7 +117,9 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       body: SafeArea(
-        child: showNotif
+        child: showChat
+            ? ChatPage(onBack: () => setState(() => showChat = false))
+            : showNotif
             ? NotifikasiPage(onBack: () => setState(() => showNotif = false))
             : pages[index],
       ),
@@ -136,12 +150,13 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _navItem(int i, IconData icon, String label) {
-    final active = !showNotif && index == i;
+    final active = !showNotif && !showChat && index == i;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() {
         index = i;
         showNotif = false;
+        showChat = false;
       }),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -362,15 +377,7 @@ class _SetorPageState extends State<SetorPage> {
         ),
         const SizedBox(width: 12),
         Expanded(child: Text('Setor Sampah', style: display(size: 22))),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: AppColors.dark,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.eco, size: 15, color: Colors.white),
-        ),
+        const LeafChatButton(),
       ],
     );
   }
@@ -1091,11 +1098,7 @@ class HomePage extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        const CircleAvatar(
-          radius: 14,
-          backgroundColor: AppColors.green,
-          child: Icon(Icons.eco, size: 15, color: Colors.white),
-        ),
+        const LeafChatButton(color: AppColors.green),
         const SizedBox(width: 8),
         const CircleAvatar(
           radius: 14,
@@ -1904,15 +1907,7 @@ class _TukarSaldoPageState extends State<TukarSaldoPage> {
         const SizedBox(width: 12),
         Text('Tukar Saldo', style: display(size: 22)),
         const Spacer(),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: AppColors.dark,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.eco, size: 15, color: Colors.white),
-        ),
+        const LeafChatButton(),
       ],
     );
   }
@@ -2508,15 +2503,7 @@ class RiwayatPage extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(child: Text('Riwayat', style: display(size: 22))),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: AppColors.dark,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.eco, size: 15, color: Colors.white),
-        ),
+        const LeafChatButton(),
       ],
     );
   }
@@ -3016,15 +3003,7 @@ class _ProfilPageState extends State<ProfilPage> {
         ),
         const SizedBox(width: 12),
         Expanded(child: Text('Profil', style: display(size: 22))),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: AppColors.dark,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.eco, size: 15, color: Colors.white),
-        ),
+        const LeafChatButton(),
       ],
     );
   }
@@ -3812,6 +3791,562 @@ class NotifikasiPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// LAYAR: CHATBOT (Asisten DaurUang)
+// ---------------------------------------------------------------
+
+/// Tombol daun bulat di pojok kanan atas. Ketuk untuk membuka chatbot.
+/// Cukup pakai `const LeafChatButton()` di halaman mana pun di dalam MainShell.
+class LeafChatButton extends StatelessWidget {
+  final Color color;
+  const LeafChatButton({super.key, this.color = AppColors.dark});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () => context.findAncestorStateOfType<_MainShellState>()?.bukaChat(),
+    child: Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: const Icon(Icons.eco, size: 15, color: Colors.white),
+    ),
+  );
+}
+
+/// Satu pesan di percakapan.
+/// Di teks bot, tulisan di dalam [[...]] akan tampil tebal berwarna oranye.
+class _Pesan {
+  final bool bot;
+  final String teks;
+  final String jam;
+  const _Pesan(this.bot, this.teks, this.jam);
+}
+
+List<_Pesan> _chatAwal() => [
+  _Pesan(
+    true,
+    'Halo! Saya asisten virtual DaurUang. Anda bisa bertanya tentang jenis sampah, harga terkini, atau cara setor sampah di sini.',
+    '09:15 AM',
+  ),
+  _Pesan(
+    true,
+    'Tahukah Anda? Memilah sampah plastik sesuai jenisnya (PET, HDPE, dll) bisa meningkatkan nilai jualnya hingga 20%!',
+    '09:16 AM',
+  ),
+  _Pesan(false, 'Bagaimana cara membedakan plastik PET dan HDPE?', '09:17 AM'),
+  _Pesan(
+    true,
+    'Perbedaannya cukup mudah:\n'
+    '[[PET (Kode 1):]] Jernih/transparan, biasanya botol air mineral.\n'
+    '[[HDPE (Kode 2):]] Lebih tebal, buram/tidak tembus cahaya, biasanya botol deterjen atau susu.',
+    '09:18 AM',
+  ),
+];
+
+/// Riwayat chat disimpan di sini supaya tidak hilang saat pindah tab.
+final List<_Pesan> _chatLog = _chatAwal();
+
+String _jamSekarang() {
+  final n = DateTime.now();
+  final h = n.hour % 12 == 0 ? 12 : n.hour % 12;
+  final m = n.minute.toString().padLeft(2, '0');
+  return '${h.toString().padLeft(2, '0')}:$m ${n.hour < 12 ? 'AM' : 'PM'}';
+}
+
+/// Jawaban bot sederhana berdasarkan kata kunci (belum memakai AI/server).
+String _jawabBot(String q) {
+  final t = q.toLowerCase();
+  bool has(List<String> k) => k.any(t.contains);
+
+  if (has(['harga'])) {
+    return 'Harga sampah hari ini:\n'
+        '[[Organik Dapur:]] Rp1.000/kg\n'
+        '[[Plastik PET:]] Rp3.500/kg\n'
+        '[[Kertas & Kardus:]] Rp2.200/kg\n'
+        'Harga bisa berubah setiap hari ya.';
+  }
+  if (has(['pet', 'hdpe', 'bedakan', 'plastik'])) {
+    return 'Perbedaannya cukup mudah:\n'
+        '[[PET (Kode 1):]] Jernih/transparan, biasanya botol air mineral.\n'
+        '[[HDPE (Kode 2):]] Lebih tebal, buram/tidak tembus cahaya, biasanya botol deterjen atau susu.';
+  }
+  if (has(['tarik', 'tukar', 'saldo', 'cair'])) {
+    return 'Saldo bisa ditarik lewat menu [[Tukar]] ke E-Wallet atau Transfer Bank. '
+        'Minimal penarikan Rp 50.000, biaya layanan Rp 1.000, dan estimasi tiba kurang dari 10 menit.';
+  }
+  if (has(['jadwal', 'jemput', 'ambil'])) {
+    return 'Kamu akan mendapat notifikasi saat armada penjemputan menuju lokasimu. '
+        'Pastikan sampah sudah [[terpilah dan bersih]] ya!';
+  }
+  if (has(['setor', 'cara'])) {
+    return 'Caranya mudah:\n'
+        '[[1. Pilih & kategorikan:]] pisahkan sampah dan bersihkan dulu.\n'
+        '[[2. Bawa ke drop point:]] atau tunggu penjemputan.\n'
+        '[[3. Timbang & cairkan:]] petugas menimbang dan saldo langsung masuk.';
+  }
+  if (has(['terima kasih', 'makasih', 'thanks'])) {
+    return 'Sama-sama! Senang bisa membantu 🌱';
+  }
+  if (has(['halo', 'hai', 'hi ', 'pagi', 'siang', 'sore', 'malam'])) {
+    return 'Halo! Ada yang bisa saya bantu seputar sampah, harga, atau penarikan saldo?';
+  }
+  return 'Maaf, saya belum paham pertanyaan itu. Coba tanyakan tentang '
+      '[[harga sampah]], [[cara setor]], [[cara tarik saldo]], atau [[jenis plastik]].';
+}
+
+class ChatPage extends StatefulWidget {
+  final VoidCallback? onBack;
+  const ChatPage({super.key, this.onBack});
+
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
+
+class _ChatPageState extends State<ChatPage> {
+  final _input = TextEditingController();
+  final _scroll = ScrollController();
+  bool mengetik = false;
+
+  static const _saran = [
+    'Harga sampah hari ini?',
+    'Cara setor sampah?',
+    'Jadwal penjemputan?',
+    'Cara tarik saldo?',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _input.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollBawah() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _kirim(String teks) async {
+    final t = teks.trim();
+    if (t.isEmpty || mengetik) return;
+    _input.clear();
+    setState(() {
+      _chatLog.add(_Pesan(false, t, _jamSekarang()));
+      mengetik = true;
+    });
+    _scrollBawah();
+
+    await Future.delayed(const Duration(milliseconds: 900));
+    _chatLog.add(_Pesan(true, _jawabBot(t), _jamSekarang()));
+    if (!mounted) return;
+    setState(() => mengetik = false);
+    _scrollBawah();
+  }
+
+  void _hapusChat() {
+    setState(() {
+      _chatLog
+        ..clear()
+        ..addAll(_chatAwal());
+    });
+    _scrollBawah();
+  }
+
+  // ---------- tampilan ----------
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+          child: _topBar(),
+        ),
+        Expanded(
+          child: ListView(
+            controller: _scroll,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            children: [
+              _tanggal('HARI INI'),
+              const SizedBox(height: 14),
+              for (final p in _chatLog) _bubble(p),
+              if (mengetik) _mengetikBubble(),
+            ],
+          ),
+        ),
+        _saranRow(),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: _inputBar(),
+        ),
+      ],
+    );
+  }
+
+  Widget _avatar(double size) => Container(
+    width: size,
+    height: size,
+    decoration: const BoxDecoration(
+      color: AppColors.dark,
+      shape: BoxShape.circle,
+    ),
+    child: Icon(Icons.eco, size: size * .5, color: Colors.white),
+  );
+
+  Widget _topBar() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: widget.onBack,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.dark, width: 1.5),
+            ),
+            child: const Icon(
+              Icons.arrow_back_rounded,
+              size: 18,
+              color: AppColors.dark,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 38,
+          height: 38,
+          child: Stack(
+            children: [
+              _avatar(36),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.bg, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Asisten DaurUang', style: display(size: 14)),
+              const Text(
+                'Online • Siap membantu',
+                style: TextStyle(fontSize: 9, color: AppColors.muted),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert_rounded, color: AppColors.dark),
+          color: Colors.white,
+          onSelected: (v) {
+            if (v == 'hapus') _hapusChat();
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'hapus',
+              child: Text('Hapus percakapan', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _tanggal(String text) => Center(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE6E0CF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 8,
+          letterSpacing: 1,
+          fontWeight: FontWeight.w700,
+          color: AppColors.muted,
+        ),
+      ),
+    ),
+  );
+
+  /// Ubah teks ber-[[tanda]] menjadi potongan teks oranye tebal.
+  List<InlineSpan> _spans(String t) {
+    final re = RegExp(r'\[\[(.*?)\]\]');
+    final out = <InlineSpan>[];
+    int i = 0;
+    for (final m in re.allMatches(t)) {
+      if (m.start > i) out.add(TextSpan(text: t.substring(i, m.start)));
+      out.add(
+        TextSpan(
+          text: m.group(1),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.orange,
+          ),
+        ),
+      );
+      i = m.end;
+    }
+    if (i < t.length) out.add(TextSpan(text: t.substring(i)));
+    return out;
+  }
+
+  Widget _bubble(_Pesan p) {
+    final maxW = MediaQuery.of(context).size.width * .68;
+    final jam = Text(
+      p.jam,
+      style: const TextStyle(fontSize: 7.5, color: AppColors.muted),
+    );
+
+    if (p.bot) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _avatar(24),
+            const SizedBox(width: 8),
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxW),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(4),
+                          topRight: Radius.circular(14),
+                          bottomLeft: Radius.circular(14),
+                          bottomRight: Radius.circular(14),
+                        ),
+                        border: Border.all(color: _line),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                        ],
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          children: _spans(p.teks),
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            height: 1.45,
+                            color: AppColors.dark,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    jam,
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // pesan pengguna (kanan)
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: AppColors.dark,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(14),
+                    topRight: Radius.circular(4),
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  p.teks,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    height: 1.45,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              jam,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _mengetikBubble() => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Row(
+      children: [
+        _avatar(24),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _line),
+          ),
+          child: const Text(
+            'Sedang mengetik...',
+            style: TextStyle(
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
+              color: AppColors.muted,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _saranRow() {
+    return SizedBox(
+      height: 32,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _saran.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => GestureDetector(
+          onTap: () => _kirim(_saran[i]),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.dark.withValues(alpha: .35)),
+            ),
+            child: Text(
+              _saran[i],
+              style: const TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _inputBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Lampiran belum tersedia')),
+            ),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE3EDD9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                size: 18,
+                color: AppColors.dark,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _input,
+              textInputAction: TextInputAction.send,
+              onSubmitted: _kirim,
+              style: const TextStyle(fontSize: 11.5),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                hintText: 'Tulis pesan...',
+                hintStyle: TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.muted.withValues(alpha: .7),
+                ),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _kirim(_input.text),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.send_rounded,
+                size: 17,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4716,4 +5251,3 @@ class SuccessScreen extends StatelessWidget {
     ),
   );
 }
-
