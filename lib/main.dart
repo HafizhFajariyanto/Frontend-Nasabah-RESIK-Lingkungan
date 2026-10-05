@@ -108,6 +108,11 @@ class _MainShellState extends State<MainShell> {
           showNotif = true;
           showChat = false;
         }),
+        onProfil: () => setState(() {
+          index = 4; // tab Profil
+          showNotif = false;
+          showChat = false;
+        }),
       ),
       TukarSaldoPage(onBack: () => setState(() => index = 0)),
       SetorPage(onBack: () => setState(() => index = 0)),
@@ -1018,7 +1023,8 @@ class DashedLine extends StatelessWidget {
 
 class HomePage extends StatelessWidget {
   final VoidCallback? onNotif;
-  const HomePage({super.key, this.onNotif});
+  final VoidCallback? onProfil;
+  const HomePage({super.key, this.onNotif, this.onProfil});
 
   @override
   Widget build(BuildContext context) {
@@ -1100,15 +1106,20 @@ class HomePage extends StatelessWidget {
         const SizedBox(width: 10),
         const LeafChatButton(color: AppColors.green),
         const SizedBox(width: 8),
-        const CircleAvatar(
-          radius: 14,
-          backgroundColor: AppColors.dark,
-          child: Text(
-            'D',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+        // Avatar "D": ketuk untuk membuka halaman Profil
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onProfil,
+          child: const CircleAvatar(
+            radius: 14,
+            backgroundColor: AppColors.dark,
+            child: Text(
+              'D',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
           ),
         ),
