@@ -132,23 +132,66 @@ class _MainShellState extends State<MainShell> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: const Color(0xFFE6DFCF)),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+        child: SizedBox(
+          height: 86, // ruang ekstra di atas bar untuk lingkaran yang menonjol
+          child: Stack(
             children: [
-              _navItem(0, Icons.home_outlined, 'Beranda'),
-              _navItem(1, Icons.account_balance_wallet_outlined, 'Tukar'),
-              _navItem(2, Icons.recycling_rounded, 'Setor'),
-              _navItem(3, Icons.receipt_long_outlined, 'Riwayat'),
-              _navItem(4, Icons.person_rounded, 'Profil'),
+              // bar putih dengan border & bayangan keras (gaya RESIK)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 10,
+                height: 64,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: AppColors.dark, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: AppColors.dark, offset: Offset(0, 4)),
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 14,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // 5 menu di atas bar
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _navItem(0, Icons.home_rounded, 'Beranda'),
+                      ),
+                      Expanded(
+                        child: _navItem(
+                          1,
+                          Icons.account_balance_wallet_rounded,
+                          'Tukar',
+                        ),
+                      ),
+                      Expanded(
+                        child: _navItem(2, Icons.recycling_rounded, 'Setor'),
+                      ),
+                      Expanded(
+                        child: _navItem(
+                          3,
+                          Icons.receipt_long_rounded,
+                          'Riwayat',
+                        ),
+                      ),
+                      Expanded(
+                        child: _navItem(4, Icons.person_rounded, 'Profil'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -156,8 +199,12 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  /// Satu menu. Menu yang aktif "naik" menjadi lingkaran oranye yang
+  /// menonjol keluar dari bar; menu lain berupa ikon polos.
   Widget _navItem(int i, IconData icon, String label) {
     final active = !showNotif && !showChat && index == i;
+    const durasi = Duration(milliseconds: 300);
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => setState(() {
@@ -165,23 +212,57 @@ class _MainShellState extends State<MainShell> {
         showNotif = false;
         showChat = false;
       }),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Icon(icon, color: active ? AppColors.orange : AppColors.dark),
-          const SizedBox(height: 2),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: active ? AppColors.orange : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+          // ikon / lingkaran
+          AnimatedPositioned(
+            duration: durasi,
+            curve: Curves.easeOutBack,
+            left: 0,
+            right: 0,
+            top: active ? 0 : 22,
+            child: Center(
+              child: AnimatedContainer(
+                duration: durasi,
+                curve: Curves.easeOutCubic,
+                width: active ? 54 : 28,
+                height: active ? 54 : 28,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withValues(alpha: active ? 1 : 0),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.dark.withValues(alpha: active ? 1 : 0),
+                    width: 1.5,
+                  ),
+                  boxShadow: active
+                      ? const [
+                          BoxShadow(color: AppColors.dark, offset: Offset(0, 3)),
+                        ]
+                      : const [],
+                ),
+                child: Icon(
+                  icon,
+                  size: active ? 26 : 24,
+                  color: active ? Colors.white : AppColors.dark,
+                ),
+              ),
             ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: active ? FontWeight.bold : FontWeight.w500,
-                color: active ? Colors.white : AppColors.muted,
+          ),
+          // label
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 17,
+            child: Center(
+              child: AnimatedDefaultTextStyle(
+                duration: durasi,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                  color: active ? AppColors.orange : AppColors.muted,
+                ),
+                child: Text(label),
               ),
             ),
           ),
