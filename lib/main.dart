@@ -5596,7 +5596,11 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
+<<<<<<< HEAD
               const Hero(tag: 'resik-logo', child: AuthLogo()),
+=======
+              const AuthLogo(),
+>>>>>>> b28b5fc7a52f908ec71333d44d143d334981fe11
               const SizedBox(height: 22),
               Text(
                 'Selamat Datang',
